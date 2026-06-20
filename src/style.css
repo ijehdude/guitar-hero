@@ -1,0 +1,208 @@
+/* ============================================================================
+   FRETSTORM — global styles & neon UI kit
+   The gameplay is rendered on <canvas>; menus/HUD overlays are DOM (#ui) for
+   accessibility (focusable, screen-reader friendly, easy remapping & uploads).
+   ========================================================================== */
+
+:root {
+  /* Neon palette — the visual identity */
+  --bg-0: #06010f;
+  --bg-1: #0c0420;
+  --ink: #eafcff;
+  --muted: #8b86c9;
+  --magenta: #ff2d95;
+  --cyan: #14f1ff;
+  --violet: #9d4bff;
+  --gold: #ffd24a;
+
+  /* Fret colours (classic, but neon-tuned) */
+  --fret-green: #2bff88;
+  --fret-red: #ff3b5c;
+  --fret-yellow: #ffe14d;
+  --fret-blue: #29b6ff;
+  --fret-orange: #ff8a2b;
+
+  --glow: 0 0 18px;
+  --font: "Rajdhani", "Chakra Petch", system-ui, "Segoe UI", sans-serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg-0);
+  color: var(--ink);
+  font-family: var(--font);
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app { position: fixed; inset: 0; }
+
+#stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* children opt back in */
+}
+#ui > * { pointer-events: auto; }
+
+/* ---- Screen overlays ---------------------------------------------------- */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: calc(24px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
+  background: radial-gradient(120% 90% at 50% -10%, rgba(157, 75, 255, 0.22), transparent 60%),
+    radial-gradient(120% 90% at 50% 110%, rgba(255, 45, 149, 0.18), transparent 60%),
+    linear-gradient(180deg, rgba(6, 1, 15, 0.78), rgba(6, 1, 15, 0.92));
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+  animation: fade-in 0.25s ease;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.wordmark {
+  font-weight: 700;
+  font-size: clamp(44px, 12vw, 110px);
+  letter-spacing: 6px;
+  margin: 0;
+  line-height: 0.95;
+  background: linear-gradient(90deg, var(--cyan), var(--magenta));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 22px rgba(255, 45, 149, 0.55));
+  text-align: center;
+}
+.tagline { color: var(--muted); letter-spacing: 4px; text-transform: uppercase; font-size: 13px; margin: -8px 0 6px; }
+
+h2.title { font-size: clamp(22px, 5vw, 34px); letter-spacing: 3px; margin: 4px 0; text-transform: uppercase; }
+.sub { color: var(--muted); font-size: 14px; text-align: center; max-width: 560px; line-height: 1.5; }
+
+/* ---- Buttons ------------------------------------------------------------ */
+.btn {
+  appearance: none;
+  border: 1px solid rgba(20, 241, 255, 0.4);
+  background: rgba(20, 241, 255, 0.06);
+  color: var(--ink);
+  font-family: var(--font);
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-size: 16px;
+  padding: 14px 26px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.15s ease, background 0.15s ease;
+  box-shadow: 0 0 0 rgba(20, 241, 255, 0);
+  min-width: 220px;
+  min-height: 52px;
+}
+.btn:hover { background: rgba(20, 241, 255, 0.14); box-shadow: var(--glow) rgba(20, 241, 255, 0.45); }
+.btn:active { transform: translateY(1px) scale(0.99); }
+.btn.primary {
+  border-color: var(--magenta);
+  background: linear-gradient(180deg, rgba(255, 45, 149, 0.25), rgba(255, 45, 149, 0.08));
+  box-shadow: var(--glow) rgba(255, 45, 149, 0.4);
+}
+.btn.primary:hover { box-shadow: 0 0 28px rgba(255, 45, 149, 0.7); }
+.btn.ghost { min-width: unset; padding: 10px 16px; font-size: 13px; border-color: rgba(139, 134, 201, 0.4); background: transparent; }
+.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.btn[aria-pressed="true"] { border-color: var(--gold); box-shadow: var(--glow) rgba(255, 210, 74, 0.5); background: rgba(255, 210, 74, 0.12); }
+
+.row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
+.col { display: flex; flex-direction: column; gap: 12px; align-items: center; width: 100%; max-width: 520px; }
+.spacer { flex: 1; }
+
+/* ---- Cards / lists ------------------------------------------------------ */
+.list { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 560px; }
+.card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid rgba(157, 75, 255, 0.35);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(157, 75, 255, 0.1), rgba(12, 4, 32, 0.6));
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s;
+  text-align: left;
+  width: 100%;
+}
+.card:hover { transform: translateX(4px); box-shadow: var(--glow) rgba(157, 75, 255, 0.4); border-color: var(--magenta); }
+.card .meta { flex: 1; }
+.card .song-title { font-size: 19px; font-weight: 700; letter-spacing: 1px; }
+.card .song-sub { color: var(--muted); font-size: 13px; }
+.card .badge {
+  font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 999px; border: 1px solid currentColor;
+}
+.badge.best { color: var(--gold); }
+.badge.tag { color: var(--cyan); }
+
+/* ---- Settings rows ------------------------------------------------------ */
+.field { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; max-width: 560px;
+  padding: 12px 14px; border-radius: 12px; background: rgba(12, 4, 32, 0.5); border: 1px solid rgba(139,134,201,0.18); }
+.field label { font-size: 15px; letter-spacing: 1px; }
+.field .hint { color: var(--muted); font-size: 12px; }
+input[type="range"] { width: 200px; accent-color: var(--magenta); }
+.value { min-width: 64px; text-align: right; color: var(--cyan); font-variant-numeric: tabular-nums; }
+.seg { display: flex; gap: 6px; }
+.seg .btn { min-width: unset; padding: 8px 14px; font-size: 13px; }
+
+.keycap {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 40px; height: 40px; padding: 0 10px;
+  border-radius: 8px; border: 1px solid rgba(234,252,255,0.3);
+  background: rgba(234,252,255,0.06); font-weight: 700; letter-spacing: 1px;
+}
+.keycap.listening { border-color: var(--gold); box-shadow: var(--glow) var(--gold); animation: pulse 0.8s infinite; }
+@keyframes pulse { 50% { opacity: 0.5; } }
+
+/* ---- File drop ---------------------------------------------------------- */
+.drop {
+  width: 100%; max-width: 560px; padding: 28px; text-align: center;
+  border: 2px dashed rgba(20,241,255,0.4); border-radius: 16px;
+  background: rgba(20,241,255,0.04); color: var(--muted); cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.drop.hover { background: rgba(20,241,255,0.12); border-color: var(--cyan); color: var(--ink); }
+.progress { width: 100%; max-width: 560px; height: 10px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.progress > i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--cyan), var(--magenta)); transition: width 0.1s; }
+
+/* ---- Toast / misc ------------------------------------------------------- */
+.toast {
+  position: absolute; bottom: calc(20px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
+  background: rgba(12,4,32,0.92); border: 1px solid var(--magenta); color: var(--ink);
+  padding: 12px 18px; border-radius: 12px; font-size: 14px; box-shadow: var(--glow) rgba(255,45,149,0.5);
+  pointer-events: none; opacity: 0; transition: opacity 0.2s; max-width: 80vw; text-align: center;
+}
+.toast.show { opacity: 1; }
+
+.hidden { display: none !important; }
+.small { font-size: 12px; color: var(--muted); }
+a { color: var(--cyan); }
+
+/* In-game pause button (top-right) */
+.hud-btn {
+  position: absolute; top: calc(12px + var(--safe-top)); right: 14px;
+  width: 44px; height: 44px; border-radius: 12px;
+  border: 1px solid rgba(234,252,255,0.25); background: rgba(6,1,15,0.5);
+  color: var(--ink); font-size: 18px; cursor: pointer;
+}

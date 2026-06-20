@@ -1,0 +1,16 @@
+{
+  "name": "fretstorm",
+  "version": "0.1.0",
+  "description": "FRETSTORM — a neon-arcade rhythm guitar game. 5 frets + strum, scrolling note highway, browser-side auto-charting. Built with Vite + TypeScript + Canvas + Web Audio.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}
