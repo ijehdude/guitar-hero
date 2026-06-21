@@ -65,6 +65,13 @@ export class GameEngine {
   private strumArmedUntil = -Infinity; // -Infinity = not armed
   /** Whether the most recent input came from touch (gates haptic feedback). */
   private lastTouch = false;
+  /** Centred judgement readout (PERFECT / GOOD / MISS / OVERDRIVE) shown in the
+   *  reserved top band so it never overlaps the notes. */
+  private judge: { text: string; sub: string; color: string; t: number; life: number } | null = null;
+
+  private setJudge(text: string, color: string, sub = "", life = 0.55) {
+    this.judge = { text, sub, color, t: 0, life };
+  }
 
   onFinish: (r: FinishResult) => void = () => {};
   onPauseRequested: () => void = () => {};
@@ -82,6 +89,7 @@ export class GameEngine {
     this.cursor = 0;
     this.sustains.clear();
     this.strumArmedUntil = -Infinity;
+    this.judge = null;
     this.finished = false;
   }
 
@@ -260,7 +268,7 @@ export class GameEngine {
     const gained = this.scoring.registerHit(quality);
     this.haptic(quality === "perfect" ? 16 : 8); // punchier buzz for a perfect
 
-    // juice
+    // juice — particle bursts stay at the strike target; the TEXT readout is centred.
     const lane = best.lanes[Math.floor(best.lanes.length / 2)];
     const x = this.layout.laneCentersHit[lane];
     const y = this.layout.hitLineY;
@@ -268,17 +276,15 @@ export class GameEngine {
     for (const l of best.lanes) this.highway.flashLane(l);
     if (quality === "perfect") {
       this.particles.perfect(x, y, color);
-      this.particles.popup(x, y - 30, "PERFECT", "#ffffff", 22);
+      this.setJudge("PERFECT", "#7ef9ff", "+" + gained);
     } else {
       this.particles.hit(x, y, color, 1);
-      this.particles.popup(x, y - 30, "GOOD", color, 18);
+      this.setJudge("GOOD", "#2bff88", "+" + gained);
     }
-    this.particles.popup(x, y - 56, "+" + gained, "#14f1ff", 16);
     this.deps.synth.hit(quality);
 
     if (this.scoring.flashMultiplierBump) {
       this.particles.ring(this.layout.cx, this.layout.hitLineY, "#ff2d95");
-      this.particles.popup(this.layout.cx, this.layout.hitLineY - 90, this.scoring.multiplier + "x", "#ff2d95", 30);
       this.scoring.flashMultiplierBump = false;
       this.shake = Math.min(this.shake + 4, 8);
     }
@@ -335,7 +341,7 @@ export class GameEngine {
       this.haptic([18, 30, 18]); // celebratory double-pulse
 
       this.particles.ring(this.layout.cx, this.layout.hitLineY, "#ffd24a");
-      this.particles.popup(this.layout.cx, this.layout.hitLineY - 120, "OVERDRIVE!", "#ffd24a", 34);
+      this.setJudge("OVERDRIVE!", "#ffd24a", "", 0.85);
       this.shake = 10;
     }
   }
@@ -355,6 +361,7 @@ export class GameEngine {
         this.scoring.registerMiss();
         const lane = n.lanes[0];
         this.particles.miss(this.layout.laneCentersHit[lane], this.layout.hitLineY);
+        this.setJudge("MISS", "#ff3b5c");
         this.deps.synth.miss();
         this.shake = Math.min(this.shake + 2, 6);
         this.cursor++;
@@ -380,6 +387,10 @@ export class GameEngine {
     this.checkMisses();
     this.updateSustains();
     this.particles.update(dt);
+    if (this.judge) {
+      this.judge.t += dt;
+      if (this.judge.t >= this.judge.life) this.judge = null;
+    }
     this.shake = Math.max(0, this.shake - dt * 22);
 
     const st = {
@@ -439,7 +450,38 @@ export class GameEngine {
     ctx.restore();
 
     this.drawHUD(st.songTime);
+    this.drawJudgement();
     this.drawCountIn(st.songTime);
+  }
+
+  /** Centred PERFECT / GOOD / MISS / OVERDRIVE readout in the reserved top band. */
+  private drawJudgement() {
+    if (!this.judge) return;
+    const L = this.layout;
+    const j = this.judge;
+    const p = j.t / j.life; // 0..1
+    const alpha = p < 0.12 ? p / 0.12 : 1 - (p - 0.12) / 0.88;
+    const pop = 1 + (1 - Math.min(1, p / 0.18)) * 0.45; // quick scale-in
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.translate(L.cx, L.judgeY);
+    ctx.scale(pop, pop);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = j.color;
+    ctx.shadowColor = j.color;
+    ctx.shadowBlur = 18;
+    ctx.font = "800 30px Rajdhani, system-ui, sans-serif";
+    ctx.fillText(j.text, 0, 0);
+    if (j.sub) {
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = Math.max(0, alpha) * 0.9;
+      ctx.fillStyle = "#cfeaff";
+      ctx.font = "700 14px Rajdhani, system-ui, sans-serif";
+      ctx.fillText(j.sub, 0, 22);
+    }
+    ctx.restore();
   }
 
   private drawHUD(songTime: number) {

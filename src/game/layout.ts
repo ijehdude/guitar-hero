@@ -14,6 +14,7 @@ export interface Layout {
   cx: number;
   highwayTop: number; // y where notes spawn (far)
   hitLineY: number; // y of the strike line (near, d=0)
+  judgeY: number; // y of the centred judgement readout (sits ABOVE the highway)
   nearHalfWidth: number; // half-width of highway at hit line
   farConverge: number; // width/spacing scale at the far end (0..1)
   laneCentersHit: number[]; // lane center X at the hit line
@@ -30,7 +31,14 @@ export function computeLayout(w: number, h: number, settings: Settings): Layout 
   // Reserve bottom band for thumb controls / strum on touch; keep targets reachable.
   const controlsBand = portrait ? Math.min(220, h * 0.26) : Math.min(150, h * 0.22);
   const hitLineY = h - controlsBand;
-  const highwayTop = portrait ? h * 0.06 : h * 0.04;
+
+  // Reserve a top "feedback band" for the centred judgement readout. The highway
+  // starts BELOW it so notes can never enter it — feedback never blocks notes.
+  // (The score/multiplier/combo HUD lives in y≈0..80; the band sits under that.)
+  const judgeY = Math.min(108, 70 + h * 0.05);
+  // Leave room for the readout's scale-in pop + the "+points" subline.
+  const feedbackBandBottom = judgeY + 44;
+  const highwayTop = Math.max(portrait ? h * 0.06 : h * 0.04, feedbackBandBottom);
 
   // Highway width: wide enough to read, but leaves margins on desktop.
   const maxHalf = Math.min(w * 0.46, 520);
@@ -57,6 +65,7 @@ export function computeLayout(w: number, h: number, settings: Settings): Layout 
     w, h, cx,
     highwayTop,
     hitLineY,
+    judgeY,
     nearHalfWidth,
     farConverge: 0.32,
     laneCentersHit,
