@@ -23,11 +23,18 @@ export interface CatalogGroup {
   id: string;
   label: string;
 }
-export type AudioSourceKind = "dev" | "cache" | "none";
+export type AudioSourceKind = "dev" | "cache" | "remote" | "none";
 
 export interface ResolvedEntry extends CatalogEntry {
   source: AudioSourceKind;
-  file?: string; // dev filename when source === "dev"
+  file?: string; // filename when source === "dev" | "remote"
+  base?: string; // host base URL when source === "remote"
+  token?: string; // host token when source === "remote"
+}
+
+export interface LibraryHost {
+  baseUrl: string;
+  token: string;
 }
 
 const EXTRAS_GROUP: CatalogGroup = { id: "imports", label: "My Songs" };
@@ -68,10 +75,33 @@ export class Library {
 
   private devFileById = new Map<string, string>(); // id -> filename on disk (dev)
   private cachedIds = new Set<string>(); // ids with audio cached in IndexedDB
+  private remoteFileById = new Map<string, string>(); // id -> filename on the host
+  private remote: { base: string; token: string } | null = null;
   isDev = false;
+  remoteCount = 0;
 
-  async init(): Promise<void> {
-    await Promise.all([this.loadDevManifest(), this.loadCached()]);
+  async init(host?: LibraryHost): Promise<void> {
+    await Promise.all([this.loadDevManifest(), this.loadCached(), this.loadRemoteManifest(host)]);
+  }
+
+  /** Connect to a personal library host (your laptop) and mark its songs available. */
+  async loadRemoteManifest(host?: LibraryHost): Promise<void> {
+    this.remote = null;
+    this.remoteFileById.clear();
+    this.remoteCount = 0;
+    if (!host?.baseUrl || !host?.token) return;
+    const base = host.baseUrl.replace(/\/+$/, "");
+    try {
+      const res = await fetch(`${base}/manifest?token=${encodeURIComponent(host.token)}`, { cache: "no-store" });
+      if (!res.ok) return; // host offline / wrong token → songs just stay locked
+      const files: string[] = (await res.json()).files ?? [];
+      this.remote = { base, token: host.token };
+      const byFile = this.matchFilenames(files);
+      for (const [file, id] of byFile) if (!this.remoteFileById.has(id)) this.remoteFileById.set(id, file);
+      this.remoteCount = this.remoteFileById.size;
+    } catch {
+      /* unreachable host — leave remote unset */
+    }
   }
 
   private async loadCached() {
@@ -139,18 +169,20 @@ export class Library {
   }
 
   resolve(entry: CatalogEntry): ResolvedEntry {
-    const file = this.devFileById.get(entry.id);
-    if (file) return { ...entry, source: "dev", file };
+    const dev = this.devFileById.get(entry.id);
+    if (dev) return { ...entry, source: "dev", file: dev };
     if (this.cachedIds.has(entry.id)) return { ...entry, source: "cache" };
+    const rf = this.remoteFileById.get(entry.id);
+    if (rf && this.remote) return { ...entry, source: "remote", file: rf, base: this.remote.base, token: this.remote.token };
     return { ...entry, source: "none" };
   }
 
   isAvailable(id: string): boolean {
-    return this.devFileById.has(id) || this.cachedIds.has(id);
+    return this.devFileById.has(id) || this.cachedIds.has(id) || this.remoteFileById.has(id);
   }
 
   hasAnyAudio(): boolean {
-    return this.devFileById.size > 0 || this.cachedIds.size > 0;
+    return this.devFileById.size > 0 || this.cachedIds.size > 0 || this.remoteFileById.size > 0;
   }
 
   /** Local-only search/filter by artist (primary) or title. */
@@ -174,6 +206,11 @@ export class Library {
     if (entry.source === "cache") {
       const blob = await getAudio(entry.id);
       return blob ? await blob.arrayBuffer() : null;
+    }
+    if (entry.source === "remote" && entry.file && entry.base) {
+      const res = await fetch(`${entry.base}/audio/${encodeURIComponent(entry.file)}?token=${encodeURIComponent(entry.token ?? "")}`, { cache: "force-cache" });
+      if (!res.ok) return null;
+      return await res.arrayBuffer();
     }
     return null;
   }

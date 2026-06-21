@@ -48,7 +48,7 @@ class App {
 
   engine: GameEngine | null = null;
   library = new Library();
-  private libReady = this.library.init();
+  private libReady!: Promise<void>;
   private songQuery = "";
   private idleHighway = new Highway();
   private idleRaf = 0;
@@ -61,6 +61,10 @@ class App {
     this.clock.setVolume(this.settings.masterVolume);
     // Expose the app for E2E tests / debugging (read-only inspection of state).
     (window as any).__fretstorm = this;
+    // A #connect=<base>~<token> deep link (QR/paste) pairs this device with a
+    // personal library host before the library initialises.
+    this.consumeConnectLink();
+    this.libReady = this.library.init(this.settings.libraryHost);
     // resume audio on first gesture (browser autoplay policy)
     const unlock = () => this.clock.resume();
     window.addEventListener("pointerdown", unlock, { once: true });
@@ -73,6 +77,56 @@ class App {
 
   save() {
     store.saveSettings(this.settings);
+  }
+
+  /** Pair from a #connect=<base>~<token> deep link, then scrub it from the URL
+   *  (the token lives in the hash, so it's never sent to the server). */
+  private consumeConnectLink() {
+    const host = parsePairing(location.hash);
+    if (!host) return;
+    this.settings.libraryHost = host;
+    this.save();
+    history.replaceState(null, "", location.pathname + location.search);
+    setTimeout(() => this.toast("📡 Library connected"), 500);
+  }
+
+  /** Settings UI: pair/unpair with a personal library host (your laptop). */
+  private connectLibraryBlock(back: () => void): HTMLElement {
+    const host = this.settings.libraryHost;
+    if (host) {
+      return el("div", { class: "field" }, [
+        el("div", {}, [
+          el("label", {}, "Connected ✓"),
+          el("div", { class: "hint" }, hostLabel(host.baseUrl) + (this.library.remoteCount ? ` · ${this.library.remoteCount} songs available` : " · laptop unreachable right now")),
+        ]),
+        el("button", {
+          class: "btn", onclick: async () => {
+            this.settings.libraryHost = undefined; this.save();
+            await this.library.loadRemoteManifest(undefined);
+            this.toast("Disconnected"); this.showSettings(back);
+          },
+        }, "Disconnect"),
+      ]);
+    }
+    const input = el("input", { class: "search", placeholder: "Paste pairing link from `npm run host`…" }) as HTMLInputElement;
+    return el("div", { class: "col" }, [
+      el("div", { class: "hint", style: { maxWidth: "560px", textAlign: "center" } },
+        "Stream your own library from your laptop: run `npm run host` there, then scan its QR (opens a pre-paired link) or paste the link here. Audio streams straight to this device — nothing is uploaded."),
+      el("div", { class: "row", style: { width: "100%", maxWidth: "560px" } }, [
+        input,
+        el("button", {
+          class: "btn primary", onclick: async () => {
+            const p = parsePairing(input.value);
+            if (!p) { this.toast("That doesn't look like a pairing link."); return; }
+            this.settings.libraryHost = p; this.save();
+            this.toast("Connecting…");
+            await this.library.loadRemoteManifest(p);
+            this.toast(this.library.remoteCount > 0 ? `Connected — ${this.library.remoteCount} songs` : "Saved, but couldn't reach your laptop yet.");
+            this.showSettings(back);
+          },
+        }, "Connect"),
+      ]),
+    ]);
   }
 
   toast(msg: string) {
@@ -286,8 +340,13 @@ class App {
     try {
       await this.clock.resume();
       const data = await this.library.getAudioData(resolved);
-      if (!data) { this.toast("Couldn't read that audio file."); this.showSongSelect(); return; }
+      if (!data) { this.toast(resolved.source === "remote" ? "Couldn't reach your laptop library." : "Couldn't read that audio file."); this.showSongSelect(); return; }
       setP(0.08);
+      // Streamed from the laptop? Cache it on THIS device so replays don't need
+      // the laptop. (slice before decode, which detaches the ArrayBuffer.)
+      if (resolved.source === "remote") {
+        try { await putAudio(entry.id, new Blob([data.slice(0)])); this.library.markCached(entry.id); } catch { /* quota */ }
+      }
       const buffer = await this.clock.ctx.decodeAudioData(data);
       let gems, bpm: number;
       const cached = await getCachedChart(entry.id);
@@ -466,6 +525,9 @@ class App {
       toggle("lefty", "Left-handed", "Mirror the highway"),
       toggle("screenShake", "Screen shake", "Disable for comfort / motion sensitivity"),
       toggle("haptics", "Haptics", "Vibrate on hits (Android phones; iOS web can't vibrate)"),
+
+      el("h2", { class: "title", style: { fontSize: "20px", marginTop: "10px" } }, "Your Library"),
+      this.connectLibraryBlock(back),
 
       el("h2", { class: "title", style: { fontSize: "20px", marginTop: "10px" } }, "Key Bindings"),
       fretCaps,
@@ -768,6 +830,25 @@ class App {
 // ---- small helpers ----------------------------------------------------------
 function labeledCap(label: string, cap: HTMLElement): HTMLElement {
   return el("div", { style: { textAlign: "center" } }, [el("div", { class: "small" }, label), cap]);
+}
+/** Parse a pairing link (#connect=<base>~<token>) or a bare "base~token". */
+function parsePairing(s: string): { baseUrl: string; token: string } | null {
+  if (!s) return null;
+  const m = /[#&?]connect=([^&\s]+)/.exec(s);
+  const payload = (m ? m[1] : s).trim();
+  const idx = payload.indexOf("~");
+  if (idx < 0) return null;
+  try {
+    const baseUrl = decodeURIComponent(payload.slice(0, idx));
+    const token = decodeURIComponent(payload.slice(idx + 1));
+    if (!/^https?:\/\//.test(baseUrl) || !token) return null;
+    return { baseUrl, token };
+  } catch {
+    return null;
+  }
+}
+function hostLabel(url: string): string {
+  try { return new URL(url).host; } catch { return url; }
 }
 function speedLabel(travelSec: number): string {
   // smaller travel = faster; show an arcade-style 1..9 scale

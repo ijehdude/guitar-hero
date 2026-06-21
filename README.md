@@ -79,6 +79,41 @@ caching, the FRETSTORM Originals (synth tracks), and user-supplied audio all run
 **client-side and deploy fine to Vercel**. The only thing that's local-dev-only
 is reading the `private_audio/` folder.
 
+## 📡 Play your home library from anywhere (laptop streams to your phone)
+
+Want to open the **hosted** app on your phone — even on cellular — and play your
+own library **without uploading anything**? Run a tiny **library host** on a
+laptop (ideally on 24/7 at home); it streams the audio in `private_audio/`
+straight to your phone. The audio never touches Vercel.
+
+**One-time setup**
+
+```bash
+# on the laptop (where private_audio/ lives):
+brew install cloudflared        # free HTTPS tunnel (or use Tailscale Funnel)
+npm run host                    # serves private_audio/, opens a tunnel,
+                                # prints a pairing link + QR
+```
+
+**Pair your phone (once):** scan the printed **QR** with your phone camera — it
+opens the app already paired — or copy the link into the app: *Settings →
+Your Library → paste → Connect*. Then just pick a song and play.
+
+- 🔒 **Token-gated to you.** Every request needs a secret token (stored in
+  `private_audio/.host.json`); the token rides in the URL **hash**, so it's never
+  sent to Vercel. CORS is locked to the app origin. **Don't share the link.**
+- 📥 **Caches after first play.** Once you've streamed a song, it's cached in your
+  phone's IndexedDB — replays don't need the laptop.
+- ⚠️ **The laptop must be reachable** (host + tunnel running) for a song you
+  haven't cached yet — that's the trade-off for never putting audio on a server.
+  A 24/7 laptop covers it. The quick-tunnel URL changes if the tunnel restarts
+  (just re-scan the QR); a Cloudflare **named tunnel** gives a permanent URL.
+- 🏠 **Same Wi-Fi?** You don't even need a tunnel — `npm run host` also prints a
+  LAN pairing link, or just open the laptop's `npm run dev -- --host` URL.
+
+This is personal use: your own files, from your own machine, to your own devices.
+The public deploy still contains **zero audio**.
+
 ## 🚀 Run it locally
 
 ```bash
@@ -95,6 +130,7 @@ npm run typecheck# optional: strict TypeScript check
 npx playwright install chromium   # one-time: fetch the headless browser
 npm run test:e2e                  # build + drive the real game in Chromium
 npm run test:e2e:library          # dev-mode: play a real song from private_audio/
+npm run test:e2e:remote           # play a song streamed from the library host
 ```
 
 `test:e2e` plays a built-in song with real keyboard + touch input and asserts the

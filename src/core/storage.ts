@@ -35,6 +35,10 @@ export interface Settings {
   bindings: KeyBindings;
   difficulty: Difficulty;
   tutorialSeen: boolean;
+  /** Optional pairing to a personal "library host" (your laptop) for streaming
+   *  your own audio to this device. Set via the Settings → Connect my library
+   *  flow or a #connect= deep link. Audio is never stored on the server. */
+  libraryHost?: { baseUrl: string; token: string };
 }
 
 export interface ScoreRecord {
@@ -73,6 +77,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bindings: DEFAULT_BINDINGS,
   difficulty: "medium",
   tutorialSeen: false,
+  libraryHost: undefined,
 };
 
 function read<T>(key: string, fallback: T): T {
