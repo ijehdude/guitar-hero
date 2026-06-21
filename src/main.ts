@@ -54,6 +54,8 @@ class App {
 
   constructor() {
     this.clock.setVolume(this.settings.masterVolume);
+    // Expose the app for E2E tests / debugging (read-only inspection of state).
+    (window as any).__fretstorm = this;
     // resume audio on first gesture (browser autoplay policy)
     const unlock = () => this.clock.resume();
     window.addEventListener("pointerdown", unlock, { once: true });

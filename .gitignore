@@ -5,6 +5,9 @@ node_modules/
 dist/
 .vite/
 
+# test artifacts (generated screenshots, etc.)
+tests/e2e/*.png
+
 # logs
 npm-debug.log*
 yarn-debug.log*

@@ -62,6 +62,18 @@ npm run preview  # serve the production build locally (use --host for phone test
 npm run typecheck# optional: strict TypeScript check
 ```
 
+### Tests
+
+```bash
+npx playwright install chromium   # one-time: fetch the headless browser
+npm run test:e2e                  # build + drive the real game in Chromium
+```
+
+The end-to-end test (`tests/e2e/`) actually plays a built-in song with real
+keyboard input and asserts the score climbs — and that holding frets *without*
+strumming scores nothing. It also screenshots live gameplay to
+`tests/e2e/gameplay.png`.
+
 > **Test on your phone:** run `npm run dev -- --host` (or `npm run preview -- --host`)
 > and open the printed Network URL on a phone on the same Wi-Fi. Tap once to enable
 > audio (browser autoplay policy).
