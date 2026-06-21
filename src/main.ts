@@ -322,11 +322,15 @@ class App {
       if (i % 2 === 0) this.synth.hat(at + interval / 2, 0.2);
     }
 
+    // The engine already auto-compensates AudioContext output latency, so the
+    // calibrator measures the RESIDUAL on top of it (avoids double-counting):
+    // compare taps to when each beat is actually heard (scheduled + outputLatency).
+    const lat = this.clock.ctx.outputLatency || this.clock.ctx.baseLatency || 0;
     const measure = () => {
       const t = this.clock.now();
       let nearest = beats[0], bd = Infinity;
-      for (const b of beats) { const d = Math.abs(b - t); if (d < bd) { bd = d; nearest = b; } }
-      const off = (t - nearest) * 1000;
+      for (const b of beats) { const d = Math.abs(b + lat - t); if (d < bd) { bd = d; nearest = b; } }
+      const off = (t - (nearest + lat)) * 1000;
       if (Math.abs(off) < 250) taps.push(off);
       counter.textContent = `Taps: ${taps.length} / 8`;
     };
@@ -430,12 +434,20 @@ class App {
     };
     const chart = buildChart(compiled.gems, this.settings.difficulty);
     this.play(new SynthTrack(this.synth, compiled), chart, meta);
+    if (!this.settings.hitAssist && this.playHintCount < 2) {
+      this.playHintCount++;
+      this.showStrumHint(false);
+    }
   }
+
+  private playHintCount = 0;
 
   startTutorial() {
     const prevAssist = this.settings.hitAssist;
     const prevDiff = this.settings.difficulty;
-    this.settings.hitAssist = true;
+    // Teach the REAL mechanic: strum is required (hit-assist OFF), but Easy
+    // gives wide timing windows and no overstrum penalty so it's forgiving.
+    this.settings.hitAssist = false;
     this.settings.difficulty = "easy";
     const compiled = composeSong(TUTORIAL_DEF, { sparse: true });
     const chart = buildChart(compiled.gems, "easy");
@@ -447,6 +459,23 @@ class App {
       this.settings.tutorialSeen = true;
       this.save();
     });
+    this.showStrumHint(true);
+  }
+
+  /** Transient on-screen reminder of the core control: hold a fret + STRUM. */
+  private showStrumHint(tutorial = false) {
+    const b = this.settings.bindings;
+    const desktop = matchMedia("(pointer: fine)").matches;
+    const how = desktop
+      ? `Hold a fret key, then tap ${keyLabel(b.strumDown)} / ${keyLabel(b.strumUp)} to STRUM`
+      : "Hold a fret button, then tap/swipe the STRUM bar below";
+    const hint = el("div", { class: "play-hint" }, [
+      el("b", {}, tutorial ? "It takes two: fret + strum" : "Fret + Strum"),
+      el("span", {}, how),
+    ]);
+    this.ui.append(hint);
+    requestAnimationFrame(() => hint.classList.add("show"));
+    setTimeout(() => { hint.classList.remove("show"); setTimeout(() => hint.remove(), 500); }, tutorial ? 9000 : 5000);
   }
 
   private play(track: any, chart: any, meta: SongMeta, onDone?: () => void) {

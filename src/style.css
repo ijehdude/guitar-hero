@@ -199,6 +199,30 @@ input[type="range"] { width: 200px; accent-color: var(--magenta); }
 .small { font-size: 12px; color: var(--muted); }
 a { color: var(--cyan); }
 
+/* In-game strum reminder banner */
+.play-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 28%;
+  transform: translate(-50%, 12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 22px;
+  border-radius: 14px;
+  background: rgba(6, 1, 15, 0.82);
+  border: 1px solid var(--cyan);
+  box-shadow: var(--glow) rgba(20, 241, 255, 0.4);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.play-hint.show { opacity: 1; transform: translate(-50%, 0); }
+.play-hint b { color: var(--cyan); letter-spacing: 2px; text-transform: uppercase; font-size: 16px; }
+.play-hint span { color: var(--muted); font-size: 13px; }
+
 /* In-game pause button (top-right) */
 .hud-btn {
   position: absolute; top: calc(12px + var(--safe-top)); right: 14px;

@@ -11,6 +11,7 @@ import type { Settings } from "../core/storage";
 import { Synth } from "../audio/synth";
 import type { AudioTrack } from "../audio/track";
 import { Chart, Note, resetChart } from "./chart";
+import { findHit } from "./judge";
 import { Scoring, WINDOWS, WINDOWS_ASSIST } from "./scoring";
 import { Highway, FRET_COLORS } from "./highway";
 import { Particles } from "./particles";
@@ -59,6 +60,9 @@ export class GameEngine {
 
   private unsubs: Array<() => void> = [];
   private reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  /** A recent strum that hasn't matched yet stays "armed" briefly, so a fret
+   *  pressed a hair after the strum still lands the note (forgiving feel). */
+  private strumArmedUntil = -Infinity; // -Infinity = not armed
 
   onFinish: (r: FinishResult) => void = () => {};
   onPauseRequested: () => void = () => {};
@@ -75,6 +79,7 @@ export class GameEngine {
     this.scoring = new Scoring(chart.noteCount);
     this.cursor = 0;
     this.sustains.clear();
+    this.strumArmedUntil = -Infinity;
     this.finished = false;
   }
 
@@ -142,10 +147,10 @@ export class GameEngine {
     const inp = this.deps.input;
     this.deps.canvas.addEventListener("pointerdown", this.odPointer, true);
     this.unsubs.push(
-      inp.on("strum", () => this.attemptHit()),
+      inp.on("strum", () => this.onStrum()),
       inp.on("fretDown", ({ lane }) => {
         this.highway.flashLane(lane); // subtle responsiveness
-        if (this.deps.getSettings().hitAssist) this.attemptHit();
+        this.onFretDown();
       }),
       inp.on("fretUp", () => this.releaseSustainsIfNeeded()),
       inp.on("overdrive", () => this.tryOverdrive()),
@@ -163,48 +168,71 @@ export class GameEngine {
     return s.hitAssist || s.difficulty === "easy" ? WINDOWS_ASSIST : WINDOWS;
   }
 
+  /** Browser-reported audio output latency (seconds). The sound is HEARD this
+   *  much after it is scheduled, so we shift both visuals and judging by it to
+   *  stay in sync with what the player actually hears — no manual calibration
+   *  needed for the common case. The user's own offset is added on top. */
+  private audioLatency(): number {
+    const c = this.deps.clock.ctx;
+    return c.outputLatency || c.baseLatency || 0;
+  }
+
+  /** The gameplay clock notes are drawn and judged against (synced to heard audio). */
+  private playTime(): number {
+    return this.deps.clock.songTime() - this.audioLatency();
+  }
+
   private effTime(): number {
     const s = this.deps.getSettings();
-    return this.deps.clock.songTime() - (s.audioOffsetMs + s.inputOffsetMs) / 1000;
+    return this.playTime() - (s.audioOffsetMs + s.inputOffsetMs) / 1000;
   }
 
-  private lanesMatch(note: Note, held: boolean[]): boolean {
-    for (const lane of note.lanes) if (!held[lane]) return false;
-    const s = this.deps.getSettings();
-    const strict = !s.hitAssist && (s.difficulty === "hard" || s.difficulty === "expert");
-    if (strict) {
-      for (let i = 0; i < 5; i++) if (held[i] && !note.lanes.includes(i)) return false;
+  // ---- strum handling (with input buffering) ------------------------------
+  private onStrum() {
+    if (this.attemptHit()) {
+      this.strumArmedUntil = -Infinity;
+      return;
     }
-    return true;
+    // No matching note held yet — arm the strum so a fret pressed a few ms
+    // later still counts. Overstrum is only penalised if it expires unmatched.
+    this.strumArmedUntil = this.playTime() + 0.09;
   }
 
-  private attemptHit() {
-    if (this.paused || this.finished) return;
+  private onFretDown() {
+    const assist = this.deps.getSettings().hitAssist;
+    // In Hit-Assist, a fret press alone plays the note (no strum required).
+    // Otherwise, only retry a hit if a recent strum is still armed.
+    if (assist || this.playTime() <= this.strumArmedUntil) {
+      if (this.attemptHit()) this.strumArmedUntil = -Infinity;
+    }
+  }
+
+  /** Resolve an armed strum that never found a note → a real overstrum. */
+  private expireArmedStrum() {
+    if (!Number.isFinite(this.strumArmedUntil)) return;
+    if (this.playTime() > this.strumArmedUntil) {
+      this.strumArmedUntil = -Infinity;
+      const s = this.deps.getSettings();
+      if (!(s.hitAssist || s.difficulty === "easy")) this.scoring.registerOverstrum();
+    }
+  }
+
+  private strict(): boolean {
+    const s = this.deps.getSettings();
+    return !s.hitAssist && (s.difficulty === "hard" || s.difficulty === "expert");
+  }
+
+  /** Try to resolve a note with the currently-held frets. Returns true on a hit. */
+  private attemptHit(): boolean {
+    if (this.paused || this.finished) return false;
     const now = this.effTime();
     const w = this.windows();
     const held = this.deps.input.heldFrets();
-    const notes = this.chart.notes;
 
-    let best: Note | null = null;
-    let bestAbs = Infinity;
-    for (let i = this.cursor; i < notes.length; i++) {
-      const n = notes[i];
-      if (n.time > now + w.good) break;
-      if (n.judged) continue;
-      if (n.time < now - w.good) continue;
-      const abs = Math.abs(n.time - now);
-      if (abs < bestAbs && this.lanesMatch(n, held)) {
-        best = n;
-        bestAbs = abs;
-      }
-    }
-
-    if (!best) {
-      // overstrum — break combo (forgiving modes are exempt)
-      const s = this.deps.getSettings();
-      if (!(s.hitAssist || s.difficulty === "easy")) this.scoring.registerOverstrum();
-      return;
-    }
+    const match = findHit(this.chart.notes, this.cursor, now, w, held, this.strict());
+    if (!match) return false; // no match — caller decides whether it's an overstrum
+    const best = match.note;
+    const bestAbs = match.abs;
 
     const quality: "perfect" | "good" = bestAbs <= w.perfect ? "perfect" : "good";
     best.judged = true;
@@ -239,6 +267,7 @@ export class GameEngine {
       best.sustainScored = this.deps.clock.songTime();
       this.sustains.add(best);
     }
+    return true;
   }
 
   private releaseSustainsIfNeeded() {
@@ -320,16 +349,18 @@ export class GameEngine {
 
     this.resize(false);
     const songTime = this.deps.clock.songTime();
-    this.track.update(songTime);
+    this.track.update(songTime); // sequencer schedules against the real audio clock
+    const visTime = this.playTime(); // notes are drawn/judged against heard audio
 
     this.scoring.update(dt);
+    this.expireArmedStrum();
     this.checkMisses();
     this.updateSustains();
     this.particles.update(dt);
     this.shake = Math.max(0, this.shake - dt * 22);
 
     const st = {
-      songTime,
+      songTime: visTime,
       travel: this.deps.getSettings().noteTravelSec,
       notes: this.chart.notes,
       held: this.deps.input.heldFrets(),
