@@ -117,6 +117,10 @@ export class GameEngine {
     if (this.paused || this.finished) return;
     this.paused = true;
     this.deps.clock.pause();
+    // Suspend the whole audio context so the song ACTUALLY stops — a BufferTrack
+    // (library/upload audio) is a real-time source that ignores the game clock.
+    // Suspending also freezes ctx.currentTime, keeping audio + clock in sync.
+    void this.deps.clock.ctx.suspend();
     this.deps.input.enabled = false;
     this.deps.input.reset();
     cancelAnimationFrame(this.raf);
@@ -125,6 +129,7 @@ export class GameEngine {
   resume() {
     if (!this.paused || this.finished) return;
     this.paused = false;
+    void this.deps.clock.ctx.resume();
     this.deps.clock.resumePlayback();
     this.deps.input.enabled = true;
     this.lastFrame = performance.now();
@@ -137,6 +142,8 @@ export class GameEngine {
     this.unbindInput();
     this.track?.stop();
     this.deps.clock.stop();
+    // don't leave the context suspended if the player quit from the pause menu
+    if (this.deps.clock.ctx.state === "suspended") void this.deps.clock.ctx.resume();
     this.particles.clear();
   }
 

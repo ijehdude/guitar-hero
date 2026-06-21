@@ -70,6 +70,19 @@ async function run() {
     if (errors.length) console.log("   errors:", errors.slice(0, 4));
     check("score climbs above zero with fret + strum", !!state && state.score > 0);
     check("hits registered (perfect+good > 0)", !!state && state.perfect + state.good > 0);
+
+    // pause must actually stop the audio (suspend the context) and freeze the clock
+    await page.evaluate(() => window.__fretstorm.engine.pause());
+    await sleep(350);
+    const p1 = await page.evaluate(() => ({ st: window.__fretstorm.clock.ctx.state, t: window.__fretstorm.clock.songTime() }));
+    await sleep(400);
+    const p2 = await page.evaluate(() => ({ st: window.__fretstorm.clock.ctx.state, t: window.__fretstorm.clock.songTime() }));
+    check("pause suspends the audio context (song stops)", p1.st === "suspended");
+    check("pause freezes the song clock", Math.abs(p2.t - p1.t) < 0.02);
+    await page.evaluate(() => window.__fretstorm.engine.resume());
+    await sleep(350);
+    const r = await page.evaluate(() => window.__fretstorm.clock.ctx.state);
+    check("resume restarts the audio context", r === "running");
     await ctx.close();
   }
 
