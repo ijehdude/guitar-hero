@@ -293,6 +293,7 @@ class App {
       toggle("hitAssist", "Hit Assist (easy)", "Wider timing, strum optional, no overstrum penalty"),
       toggle("lefty", "Left-handed", "Mirror the highway"),
       toggle("screenShake", "Screen shake", "Disable for comfort / motion sensitivity"),
+      toggle("haptics", "Haptics", "Vibrate on hits (Android phones; iOS web can't vibrate)"),
 
       el("h2", { class: "title", style: { fontSize: "20px", marginTop: "10px" } }, "Key Bindings"),
       fretCaps,

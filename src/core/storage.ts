@@ -30,6 +30,7 @@ export interface Settings {
   colorblind: boolean; // adds distinct shapes/symbols per lane
   lefty: boolean; // mirror the highway
   screenShake: boolean;
+  haptics: boolean; // vibrate on hits (Android touch; iOS web has no vibration)
   hitAssist: boolean; // Easy-mode forgiveness: strum optional, wider windows
   bindings: KeyBindings;
   difficulty: Difficulty;
@@ -67,6 +68,7 @@ export const DEFAULT_SETTINGS: Settings = {
   colorblind: false,
   lefty: false,
   screenShake: true,
+  haptics: true,
   hitAssist: false,
   bindings: DEFAULT_BINDINGS,
   difficulty: "medium",

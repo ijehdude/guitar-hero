@@ -94,6 +94,11 @@ async function run() {
   // ---- Scenario 3: MOBILE touch — tapping fret buttons scores -------------
   {
     const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
+    // Spy on the Vibration API so we can assert haptics fire on touch hits.
+    await ctx.addInitScript(() => {
+      window.__vibes = [];
+      navigator.vibrate = (p) => { window.__vibes.push(p); return true; };
+    });
     const page = await ctx.newPage();
     await gotoSong(page);
     // Read the live fret-button geometry from the engine's layout.
@@ -113,10 +118,12 @@ async function run() {
       const s = window.__fretstorm.engine?.score;
       return s ? { score: s.score, perfect: s.perfect, good: s.good, miss: s.miss } : null;
     });
-    console.log("   touch state:", JSON.stringify(state));
+    const vibes = await page.evaluate(() => window.__vibes ?? []);
+    console.log("   touch state:", JSON.stringify(state), "| vibrations:", vibes.length);
     await page.screenshot({ path: "tests/e2e/gameplay-touch.png" });
     check("MOBILE: tapping a fret button plays the note (score > 0)", !!state && state.score > 0);
     check("MOBILE: hits registered via touch", !!state && state.perfect + state.good > 0);
+    check("MOBILE: haptic fires on a touch hit", vibes.length > 0);
     await ctx.close();
   }
 

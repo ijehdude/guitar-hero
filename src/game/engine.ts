@@ -63,6 +63,8 @@ export class GameEngine {
   /** A recent strum that hasn't matched yet stays "armed" briefly, so a fret
    *  pressed a hair after the strum still lands the note (forgiving feel). */
   private strumArmedUntil = -Infinity; // -Infinity = not armed
+  /** Whether the most recent input came from touch (gates haptic feedback). */
+  private lastTouch = false;
 
   onFinish: (r: FinishResult) => void = () => {};
   onPauseRequested: () => void = () => {};
@@ -187,8 +189,19 @@ export class GameEngine {
     return this.playTime() - (s.audioOffsetMs + s.inputOffsetMs) / 1000;
   }
 
+  /** Haptic feedback (Android touch only; iOS web has no Vibration API). */
+  private haptic(pattern: number | number[]) {
+    if (!this.lastTouch || !this.deps.getSettings().haptics) return;
+    try {
+      navigator.vibrate?.(pattern);
+    } catch {
+      /* unsupported */
+    }
+  }
+
   // ---- strum / tap handling (with input buffering) ------------------------
   private onStrum(source: "touch" | "key") {
+    this.lastTouch = source === "touch";
     if (this.attemptHit()) {
       this.strumArmedUntil = -Infinity;
       return;
@@ -200,6 +213,7 @@ export class GameEngine {
   }
 
   private onFretDown(source: "touch" | "key") {
+    this.lastTouch = source === "touch";
     // MOBILE: tapping a coloured fret button plays the note directly — the
     // on-screen strum bar is a secondary/advanced control. Keyboard Hit-Assist
     // behaves the same. Both are "free" attempts (a miss is never an overstrum).
@@ -244,6 +258,7 @@ export class GameEngine {
     best.judged = true;
     best.hit = true;
     const gained = this.scoring.registerHit(quality);
+    this.haptic(quality === "perfect" ? 16 : 8); // punchier buzz for a perfect
 
     // juice
     const lane = best.lanes[Math.floor(best.lanes.length / 2)];
@@ -317,6 +332,8 @@ export class GameEngine {
   private tryOverdrive() {
     if (this.scoring.activateOverdrive()) {
       this.deps.synth.overdriveActivate();
+      this.haptic([18, 30, 18]); // celebratory double-pulse
+
       this.particles.ring(this.layout.cx, this.layout.hitLineY, "#ffd24a");
       this.particles.popup(this.layout.cx, this.layout.hitLineY - 120, "OVERDRIVE!", "#ffd24a", 34);
       this.shake = 10;
