@@ -3,6 +3,7 @@
     { "id": "signature", "label": "Signature / Hardest" },
     { "id": "classic", "label": "Classic Rock Staples" },
     { "id": "crowd", "label": "Crowd-Pleasers" },
+    { "id": "linkin-park", "label": "Linkin Park" },
     { "id": "electronic", "label": "Electronic" }
   ],
   "songs": [
@@ -12,6 +13,7 @@
     { "id": "cliffs-of-dover", "title": "Cliffs of Dover", "artist": "Eric Johnson", "group": "signature", "difficultyHint": "expert" },
     { "id": "bark-at-the-moon", "title": "Bark at the Moon", "artist": "Ozzy Osbourne", "group": "signature", "difficultyHint": "hard" },
     { "id": "raining-blood", "title": "Raining Blood", "artist": "Slayer", "group": "signature", "difficultyHint": "expert" },
+    { "id": "canon-rock", "title": "Canon Rock", "artist": "Sungha Jung", "group": "signature", "difficultyHint": "expert" },
 
     { "id": "sweet-child-o-mine", "title": "Sweet Child O' Mine", "artist": "Guns N' Roses", "group": "classic", "difficultyHint": "hard" },
     { "id": "slow-ride", "title": "Slow Ride", "artist": "Foghat", "group": "classic", "difficultyHint": "medium" },
@@ -30,6 +32,13 @@
     { "id": "when-you-were-young", "title": "When You Were Young", "artist": "The Killers", "group": "crowd", "difficultyHint": "medium" },
     { "id": "even-flow", "title": "Even Flow", "artist": "Pearl Jam", "group": "crowd", "difficultyHint": "hard" },
     { "id": "hit-me-with-your-best-shot", "title": "Hit Me with Your Best Shot", "artist": "Pat Benatar", "group": "crowd", "difficultyHint": "easy" },
+
+    { "id": "lp-faint", "title": "Faint", "artist": "Linkin Park", "group": "linkin-park", "difficultyHint": "hard" },
+    { "id": "lp-in-the-end", "title": "In the End", "artist": "Linkin Park", "group": "linkin-park", "difficultyHint": "medium" },
+    { "id": "lp-new-divide", "title": "New Divide", "artist": "Linkin Park", "group": "linkin-park", "difficultyHint": "hard" },
+    { "id": "lp-numb", "title": "Numb", "artist": "Linkin Park", "group": "linkin-park", "difficultyHint": "medium" },
+    { "id": "lp-somewhere-i-belong", "title": "Somewhere I Belong", "artist": "Linkin Park", "group": "linkin-park", "difficultyHint": "hard" },
+    { "id": "lp-what-ive-done", "title": "What I've Done", "artist": "Linkin Park", "group": "linkin-park", "difficultyHint": "hard" },
 
     { "id": "avicii-levels", "title": "Levels", "artist": "Avicii", "group": "electronic", "difficultyHint": "medium" },
     { "id": "avicii-the-nights", "title": "The Nights", "artist": "Avicii", "group": "electronic", "difficultyHint": "medium" },

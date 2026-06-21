@@ -55,11 +55,15 @@ while (Date.now() < end) {
 }
 const st = await page.evaluate(() => {
   const s = window.__fretstorm.engine?.score;
-  return s ? { score: s.score, perfect: s.perfect, good: s.good, miss: s.miss } : null;
+  const c = window.__fretstorm.lastClip;
+  return { score: s?.score, perfect: s?.perfect, good: s?.good, miss: s?.miss, clip: c ? +(c.end - c.start).toFixed(1) : null };
 });
 console.log("state:", JSON.stringify(st), "| errors:", errors.length);
 
-const ok = !!st && st.score > 0 && errors.length === 0;
+// Library songs must be trimmed to a ~3-min clip (≤185s), never the full track.
+const trimmed = st.clip != null && st.clip <= 185;
+const ok = !!st && st.score > 0 && errors.length === 0 && trimmed;
+if (!trimmed) console.log("  ✗ expected clip ≤185s, got", st.clip);
 console.log(ok ? "\nLIBRARY E2E PASSED ✓" : "\nLIBRARY E2E FAILED ✗");
 await browser.close();
 process.exit(ok ? 0 : 1);

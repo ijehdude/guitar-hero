@@ -68,6 +68,12 @@ song becomes playable once its audio is present *on your device*, two ways:
   → pick your files. They're decoded, charted, and cached in **IndexedDB on your
   device**. Nothing is uploaded to any server.
 
+**~3-minute clips.** Library songs are auto-trimmed to a single ~3-min window
+chosen around the **loudest section** (almost always the chorus), so sessions stay
+snappy. To set it by ear, tap the **✂︎** next to a song: drag where the clip starts,
+**Preview**, then **Save** (saved on that device; or pin it for all devices in
+`src/data/segments.json`). FRETSTORM Originals are short and play in full.
+
 > ⚖️ **Use music you own.** The app never sources or distributes audio — you
 > supply your own files, which stay on your machine/browser. Online "search any
 > song" (rip from YouTube etc.) is **intentionally not built** — it raises real

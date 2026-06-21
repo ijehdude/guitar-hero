@@ -15,6 +15,8 @@ interface CachedChart {
   bpm: number;
   duration: number;
   title: string;
+  /** The clip window this chart was generated for (library songs are trimmed). */
+  clip?: { start: number; end: number };
 }
 
 function openDB(): Promise<IDBDatabase> {

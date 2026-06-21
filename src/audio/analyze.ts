@@ -25,12 +25,8 @@ export async function decodeFile(ctx: AudioContext, file: File): Promise<AudioBu
   return await ctx.decodeAudioData(arr);
 }
 
-export async function analyzeBuffer(
-  buffer: AudioBuffer,
-  onProgress?: (p: number) => void
-): Promise<AnalyzeResult> {
-  const sr = buffer.sampleRate;
-  // ---- downmix to mono ----
+/** Average all channels into a single mono Float32Array. */
+export function toMono(buffer: AudioBuffer): Float32Array {
   const len = buffer.length;
   const mono = new Float32Array(len);
   for (let c = 0; c < buffer.numberOfChannels; c++) {
@@ -39,6 +35,16 @@ export async function analyzeBuffer(
   }
   const inv = 1 / buffer.numberOfChannels;
   for (let i = 0; i < len; i++) mono[i] *= inv;
+  return mono;
+}
+
+export async function analyzeBuffer(
+  buffer: AudioBuffer,
+  onProgress?: (p: number) => void
+): Promise<AnalyzeResult> {
+  const sr = buffer.sampleRate;
+  const len = buffer.length;
+  const mono = toMono(buffer);
 
   // ---- per-frame energy + zero-crossing rate ----
   const frames = Math.max(1, Math.floor((len - FRAME) / HOP));

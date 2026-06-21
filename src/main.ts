@@ -20,6 +20,8 @@ import { decodeFile, analyzeBuffer } from "./audio/analyze";
 import { fingerprint, getCachedChart, putCachedChart } from "./audio/chartCache";
 import { Library, CatalogEntry } from "./audio/library";
 import { putAudio } from "./audio/mediaCache";
+import { Clip, applyClip, clipsEqual, pickClip, sliceBuffer, CLIP_SEC } from "./audio/clip";
+import { effectiveClip, getOverride, setOverride, clearOverride } from "./audio/clips";
 import { GameEngine, SongMeta } from "./game/engine";
 import { Highway } from "./game/highway";
 import { computeLayout } from "./game/layout";
@@ -54,6 +56,7 @@ class App {
   private idleRaf = 0;
   private idleLast = 0;
   private replay: (() => void) | null = null;
+  lastClip: Clip | null = null; // the clip window used for the last catalog song
   private activeMeta: SongMeta | null = null;
   private activeDifficulty: Difficulty = "medium";
 
@@ -314,22 +317,117 @@ class App {
     const diff = this.settings.difficulty;
     const avail = this.library.isAvailable(entry.id);
     const best = avail ? store.bestScore(entry.id, diff) : null;
+    const clipped = getOverride(entry.id) != null;
     const right = !avail
       ? el("div", { class: "badge need" }, "⤓ Needs audio")
       : best
         ? el("div", { class: "badge best" }, `★${best.stars} · ${best.score.toLocaleString()}`)
         : el("div", { class: "badge tag" }, "PLAY");
-    return el("button", {
+    const card = el("button", {
       class: "card",
       style: avail ? {} : { opacity: "0.6" },
       onclick: () => { avail ? this.startCatalog(entry) : this.showImport(entry); },
     }, [
       el("div", { class: "meta" }, [
         el("div", { class: "song-title" }, entry.title),
-        el("div", { class: "song-sub" }, `${entry.artist}${avail ? "" : " · tap to add your audio"}`),
+        el("div", { class: "song-sub" }, `${entry.artist}${avail ? (clipped ? " · ✂︎ custom clip" : "") : " · tap to add your audio"}`),
       ]),
       right,
     ]);
+    if (!avail) return card;
+    // Secondary action: adjust the ~3-min clip by ear. (Separate button so we
+    // don't nest a <button> inside a <button>.)
+    const clipBtn = el("button", {
+      class: "clip-btn", title: "Adjust clip (set where it starts)",
+      onclick: (e: Event) => { e.stopPropagation(); this.showClipEditor(entry); },
+    }, "✂︎");
+    return el("div", { class: "card-row" }, [card, clipBtn]);
+  }
+
+  // ---- clip editor: pick the ~3-min window by ear -------------------------
+  private async showClipEditor(entry: CatalogEntry) {
+    const setP = this.showLoading(`${entry.artist} — ${entry.title}`);
+    let buffer: AudioBuffer;
+    try {
+      await this.clock.resume();
+      const resolved = this.library.resolve(entry);
+      const data = await this.library.getAudioData(resolved);
+      if (!data) { this.toast("Couldn't load that audio."); this.showSongSelect(); return; }
+      setP(0.6);
+      buffer = await this.clock.ctx.decodeAudioData(data);
+    } catch (err) {
+      console.error(err); this.toast("Couldn't load that audio."); this.showSongSelect(); return;
+    }
+
+    const dur = buffer.duration;
+    const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+    // short songs play in full — nothing to trim
+    if (dur <= CLIP_SEC + 15) {
+      this.setScreen(screen(
+        el("h2", { class: "title" }, "Adjust Clip"),
+        el("div", { class: "song-title", style: { fontSize: "20px" } }, entry.title),
+        el("div", { class: "sub" }, `This song is ${fmt(dur)} — under 3 minutes, so it already plays in full. Nothing to trim.`),
+        el("button", { class: "btn", onclick: () => this.showSongSelect() }, "← Back")
+      ));
+      return;
+    }
+
+    const len = CLIP_SEC;
+    const maxStart = Math.max(0, dur - len);
+    let start = Math.min(maxStart, (getOverride(entry.id) ?? pickClip(buffer)).start);
+    let preview: AudioBufferSourceNode | null = null;
+
+    const win = el("i");
+    const label = el("div", { class: "value", style: { fontSize: "18px" } });
+    const update = () => {
+      win.style.left = (start / dur) * 100 + "%";
+      win.style.width = (len / dur) * 100 + "%";
+      label.textContent = `${fmt(start)} – ${fmt(start + len)}   (of ${fmt(dur)})`;
+    };
+    const stopPreview = () => { if (preview) { try { preview.stop(); } catch {} preview = null; } };
+    const slider = el("input", {
+      type: "range", min: "0", max: String(Math.floor(maxStart)), step: "1", value: String(Math.floor(start)),
+      style: { width: "100%", maxWidth: "560px" },
+      oninput: (e: Event) => { stopPreview(); start = Number((e.target as HTMLInputElement).value); update(); },
+    });
+
+    this.setScreen(screen(
+      el("h2", { class: "title" }, "Adjust Clip"),
+      el("div", { class: "song-title", style: { fontSize: "20px" } }, `${entry.artist} — ${entry.title}`),
+      el("div", { class: "sub" }, "Drag to choose where the ~3-min clip starts, Preview to check the chorus is in it, then Save."),
+      el("div", { class: "clip-bar" }, [win]),
+      label,
+      slider,
+      el("div", { class: "row" }, [
+        el("button", { class: "btn", onclick: () => {
+          stopPreview();
+          const seg = sliceBuffer(this.clock.ctx, buffer, start, Math.min(start + 15, start + len));
+          const src = this.clock.ctx.createBufferSource();
+          src.buffer = seg; src.connect(this.clock.master); src.start();
+          preview = src;
+        } }, "▶ Preview"),
+        el("button", { class: "btn ghost", onclick: () => stopPreview() }, "■ Stop"),
+      ]),
+      el("div", { class: "row" }, [
+        el("button", { class: "btn primary", onclick: () => {
+          stopPreview();
+          setOverride(entry.id, { start, end: start + len });
+          this.toast("Clip saved ✓");
+          this.showSongSelect();
+        } }, "Save Clip"),
+        el("button", { class: "btn ghost", onclick: () => {
+          stopPreview();
+          clearOverride(entry.id);
+          start = Math.min(maxStart, pickClip(buffer).start);
+          (slider as HTMLInputElement).value = String(Math.floor(start));
+          update();
+          this.toast("Reset to auto");
+        } }, "Reset to auto" ),
+        el("button", { class: "btn ghost", onclick: () => { stopPreview(); this.showSongSelect(); } }, "← Back"),
+      ])
+    ));
+    update();
   }
 
   // ---- play a catalog song (resolve audio → chart → play) -----------------
@@ -348,17 +446,21 @@ class App {
         try { await putAudio(entry.id, new Blob([data.slice(0)])); this.library.markCached(entry.id); } catch { /* quota */ }
       }
       const buffer = await this.clock.ctx.decodeAudioData(data);
+      // Trim to a ~3-min clip around the chorus (auto, or the player's override).
+      const clip = effectiveClip(entry.id, buffer);
+      this.lastClip = clip;
+      const playBuffer = applyClip(this.clock.ctx, buffer, clip);
       let gems, bpm: number;
       const cached = await getCachedChart(entry.id);
-      if (cached) { gems = cached.gems; bpm = cached.bpm; setP(1); }
+      if (cached && clipsEqual(cached.clip, clip)) { gems = cached.gems; bpm = cached.bpm; setP(1); }
       else {
-        const res = await analyzeBuffer(buffer, (p) => setP(0.08 + p * 0.9));
+        const res = await analyzeBuffer(playBuffer, (p) => setP(0.08 + p * 0.9));
         gems = res.gems; bpm = res.bpm;
-        await putCachedChart({ key: entry.id, gems, bpm, duration: res.duration, title: entry.title });
+        await putCachedChart({ key: entry.id, gems, bpm, duration: res.duration, title: entry.title, clip });
       }
       if (buildChart(gems, this.settings.difficulty).noteCount < 4) { this.toast("Couldn't find enough beats in that track."); this.showSongSelect(); return; }
       const meta: SongMeta = { id: entry.id, title: entry.title, artist: entry.artist, bpm };
-      const mk = () => this.play(new BufferTrack(this.clock.ctx, this.clock.master, buffer), buildChart(gems!, this.settings.difficulty), meta);
+      const mk = () => this.play(new BufferTrack(this.clock.ctx, this.clock.master, playBuffer), buildChart(gems!, this.settings.difficulty), meta);
       this.replay = mk;
       mk();
     } catch (err) {

@@ -1,0 +1,3 @@
+{
+  "_comment": "Committed clip overrides: song id -> { start, end } in seconds. Edit by hand to pin a clip across all devices, or use the in-app clip editor (saved per-device). Anything not listed is auto-picked from the audio's loudest ~3-min window."
+}
