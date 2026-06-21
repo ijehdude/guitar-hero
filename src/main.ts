@@ -18,6 +18,8 @@ import { BufferTrack } from "./audio/track";
 import { buildChart } from "./game/chart";
 import { decodeFile, analyzeBuffer } from "./audio/analyze";
 import { fingerprint, getCachedChart, putCachedChart } from "./audio/chartCache";
+import { Library, CatalogEntry } from "./audio/library";
+import { putAudio } from "./audio/mediaCache";
 import { GameEngine, SongMeta } from "./game/engine";
 import { Highway } from "./game/highway";
 import { computeLayout } from "./game/layout";
@@ -45,6 +47,9 @@ class App {
   input = new InputManager(this.canvas, () => this.settings);
 
   engine: GameEngine | null = null;
+  library = new Library();
+  private libReady = this.library.init();
+  private songQuery = "";
   private idleHighway = new Highway();
   private idleRaf = 0;
   private idleLast = 0;
@@ -157,48 +162,215 @@ class App {
   }
 
   showSongSelect() {
-    const unlocked = new Set(store.unlockedSongs());
+    this.renderSongSelect();
+    // The library may still be initialising (manifest + IndexedDB). Re-render
+    // once ready ONLY if some audio actually became available (otherwise the
+    // first render is already correct — avoids needless DOM churn).
+    this.libReady.then(() => {
+      if (this.library.hasAnyAudio() && document.getElementById("songselect")) this.renderSongSelect();
+    });
+  }
+
+  private renderSongSelect() {
     const diffRow = el("div", { class: "seg" },
       DIFFS.map((d) =>
         el("button", {
           class: "btn", "aria-pressed": String(this.settings.difficulty === d),
-          onclick: () => { this.settings.difficulty = d; this.save(); this.showSongSelect(); },
+          onclick: () => { this.settings.difficulty = d; this.save(); this.renderSongSelect(); },
         }, DIFF_LABEL[d])
       )
     );
 
-    const cards = SONGS.map((def) => {
-      const locked = !def.unlockedByDefault && !unlocked.has(def.id);
-      const best = store.bestScore(def.id, this.settings.difficulty);
-      return el("button", {
-        class: "card",
-        style: locked ? { opacity: "0.55", cursor: "help" } : {},
-        onclick: () => { if (locked) { this.toast("🔒 " + def.intent); } else { this.synth.uiClick(); this.startBuiltIn(def); } },
-      }, [
-        el("div", { class: "meta" }, [
-          el("div", { class: "song-title" }, (locked ? "🔒 " : "") + def.title),
-          el("div", { class: "song-sub" }, `${def.artist} · ${def.bpm} BPM · ${def.intent}`),
-        ]),
-        best ? el("div", { class: "badge best" }, `★${best.stars} · ${best.score.toLocaleString()}`) : el("div", { class: "badge tag" }, "NEW"),
-      ]);
+    const listEl = el("div", { class: "list" });
+    const renderList = () => { clear(listEl); this.buildSongList(listEl); };
+    renderList();
+
+    const search = el("input", {
+      type: "search", class: "search", placeholder: "Search by artist or title…",
+      value: this.songQuery,
+      oninput: (e: Event) => { this.songQuery = (e.target as HTMLInputElement).value; renderList(); },
     });
 
-    this.setScreen(
-      screen(
-        el("h2", { class: "title" }, "Select a Song"),
-        el("div", { class: "small" }, "Difficulty"),
-        diffRow,
-        el("div", { class: "list" }, cards),
-        el("div", { class: "list" }, [
-          el("button", { class: "btn", onclick: () => this.showUpload() }, "⬆  Load Your Own Audio"),
-          el("button", { class: "btn ghost", disabled: "true", title: "See ROADMAP.md", style: { opacity: "0.5" } }, "🔎  Search Online (roadmap)"),
-        ]),
-        el("div", { class: "row" }, [
-          el("button", { class: "btn ghost", onclick: () => this.showMenu() }, "← Back"),
-          el("button", { class: "btn ghost", onclick: () => this.showSettings(() => this.showSongSelect()) }, "Settings"),
-        ])
-      )
+    const root = screen(
+      el("h2", { class: "title" }, "Songs"),
+      diffRow,
+      search,
+      listEl,
+      el("div", { class: "row" }, [
+        el("button", { class: "btn", onclick: () => this.showImport() }, "⬆  Import / Add Audio"),
+        el("button", { class: "btn ghost", disabled: "true", title: "See ROADMAP.md", style: { opacity: "0.5" } }, "🔎  Search Online (roadmap)"),
+      ]),
+      el("div", { class: "row" }, [
+        el("button", { class: "btn ghost", onclick: () => this.showMenu() }, "← Back"),
+        el("button", { class: "btn ghost", onclick: () => this.showSettings(() => this.showSongSelect()) }, "Settings"),
+      ])
     );
+    root.id = "songselect";
+    this.setScreen(root);
+  }
+
+  private matchesQuery(title: string, artist: string): boolean {
+    const q = this.songQuery.trim().toLowerCase();
+    if (!q) return true;
+    return q.split(/\s+/).every((t) => `${artist} ${title}`.toLowerCase().includes(t));
+  }
+
+  private buildSongList(listEl: HTMLElement, ) {
+    const diff = this.settings.difficulty;
+
+    // --- FRETSTORM Originals (always playable, no audio needed) ---
+    const originals = SONGS.filter((d) => (d.unlockedByDefault || store.unlockedSongs().includes(d.id)) && this.matchesQuery(d.title, d.artist));
+    if (originals.length) {
+      listEl.append(el("div", { class: "group-h" }, "FRETSTORM Originals"));
+      for (const def of originals) {
+        const best = store.bestScore(def.id, diff);
+        listEl.append(el("button", {
+          class: "card",
+          onclick: () => { this.synth.uiClick(); this.startBuiltIn(def); },
+        }, [
+          el("div", { class: "meta" }, [
+            el("div", { class: "song-title" }, def.title),
+            el("div", { class: "song-sub" }, `${def.artist} · ${def.bpm} BPM`),
+          ]),
+          best ? el("div", { class: "badge best" }, `★${best.stars} · ${best.score.toLocaleString()}`) : el("div", { class: "badge tag" }, "PLAY"),
+        ]));
+      }
+    }
+
+    // --- Library catalog (grouped) ---
+    const filtered = this.library.search(this.songQuery);
+    const byGroup = new Map<string, CatalogEntry[]>();
+    for (const e of filtered) {
+      if (!byGroup.has(e.group)) byGroup.set(e.group, []);
+      byGroup.get(e.group)!.push(e);
+    }
+    for (const g of this.library.allGroups()) {
+      const items = byGroup.get(g.id);
+      if (!items || !items.length) continue;
+      listEl.append(el("div", { class: "group-h" }, g.label));
+      for (const entry of items) listEl.append(this.catalogCard(entry));
+    }
+
+    if (!listEl.children.length) {
+      listEl.append(el("div", { class: "sub" }, "No songs match your search."));
+    }
+  }
+
+  private catalogCard(entry: CatalogEntry): HTMLElement {
+    const diff = this.settings.difficulty;
+    const avail = this.library.isAvailable(entry.id);
+    const best = avail ? store.bestScore(entry.id, diff) : null;
+    const right = !avail
+      ? el("div", { class: "badge need" }, "⤓ Needs audio")
+      : best
+        ? el("div", { class: "badge best" }, `★${best.stars} · ${best.score.toLocaleString()}`)
+        : el("div", { class: "badge tag" }, "PLAY");
+    return el("button", {
+      class: "card",
+      style: avail ? {} : { opacity: "0.6" },
+      onclick: () => { avail ? this.startCatalog(entry) : this.showImport(entry); },
+    }, [
+      el("div", { class: "meta" }, [
+        el("div", { class: "song-title" }, entry.title),
+        el("div", { class: "song-sub" }, `${entry.artist}${avail ? "" : " · tap to add your audio"}`),
+      ]),
+      right,
+    ]);
+  }
+
+  // ---- play a catalog song (resolve audio → chart → play) -----------------
+  private async startCatalog(entry: CatalogEntry) {
+    const resolved = this.library.resolve(entry);
+    if (resolved.source === "none") { this.showImport(entry); return; }
+    const setP = this.showLoading(`${entry.artist} — ${entry.title}`);
+    try {
+      await this.clock.resume();
+      const data = await this.library.getAudioData(resolved);
+      if (!data) { this.toast("Couldn't read that audio file."); this.showSongSelect(); return; }
+      setP(0.08);
+      const buffer = await this.clock.ctx.decodeAudioData(data);
+      let gems, bpm: number;
+      const cached = await getCachedChart(entry.id);
+      if (cached) { gems = cached.gems; bpm = cached.bpm; setP(1); }
+      else {
+        const res = await analyzeBuffer(buffer, (p) => setP(0.08 + p * 0.9));
+        gems = res.gems; bpm = res.bpm;
+        await putCachedChart({ key: entry.id, gems, bpm, duration: res.duration, title: entry.title });
+      }
+      if (buildChart(gems, this.settings.difficulty).noteCount < 4) { this.toast("Couldn't find enough beats in that track."); this.showSongSelect(); return; }
+      const meta: SongMeta = { id: entry.id, title: entry.title, artist: entry.artist, bpm };
+      const mk = () => this.play(new BufferTrack(this.clock.ctx, this.clock.master, buffer), buildChart(gems!, this.settings.difficulty), meta);
+      this.replay = mk;
+      mk();
+    } catch (err) {
+      console.error(err);
+      this.toast("Could not load this song.");
+      this.showSongSelect();
+    }
+  }
+
+  private showLoading(title: string): (p: number) => void {
+    const bar = el("i");
+    this.setScreen(screen(
+      el("h2", { class: "title" }, "Loading"),
+      el("div", { class: "song-title", style: { fontSize: "20px" } }, title),
+      el("div", { class: "small" }, "Decoding audio & building the chart…"),
+      el("div", { class: "progress" }, bar)
+    ));
+    return (p: number) => ((bar as HTMLElement).style.width = Math.round(Math.max(0, Math.min(1, p)) * 100) + "%");
+  }
+
+  // ---- import audio into the library (cached on this device) --------------
+  showImport(target?: CatalogEntry) {
+    const single = !!target;
+    const drop = el("div", { class: "drop" }, single ? `Choose your file for “${target!.title}”` : "Tap to choose audio files — or drag & drop") as HTMLElement;
+    const fileInput = el("input", { type: "file", accept: "audio/*", multiple: single ? null : "true", style: { display: "none" } }) as HTMLInputElement;
+    const status = el("div", { class: "small" }, single ? "One file · stays on this device" : "Pick many at once — they’ll auto-match to the library by filename");
+
+    const handle = async (files: File[]) => {
+      if (!files.length) return;
+      status.textContent = "Saving to this device…";
+      try {
+        if (single) {
+          await putAudio(target!.id, files[0]);
+          this.library.markCached(target!.id);
+          this.toast(`Added: ${target!.title}`);
+          this.startCatalog(target!);
+          return;
+        }
+        const map = this.library.matchFilenames(files.map((f) => f.name));
+        let n = 0;
+        for (const f of files) {
+          const id = map.get(f.name);
+          if (!id) continue;
+          await putAudio(id, f);
+          this.library.markCached(id);
+          n++;
+        }
+        this.toast(`Imported ${n} song${n === 1 ? "" : "s"} ✓`);
+        this.showSongSelect();
+      } catch (err) {
+        console.error(err);
+        this.toast("Import failed.");
+      }
+    };
+
+    drop.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => handle([...(fileInput.files ?? [])]));
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("hover"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("hover"));
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault(); drop.classList.remove("hover");
+      handle([...((e as DragEvent).dataTransfer?.files ?? [])]);
+    });
+
+    this.setScreen(screen(
+      el("h2", { class: "title" }, single ? "Add Audio" : "Import Your Audio"),
+      el("div", { class: "sub" }, "Your files are analysed and stored only in this browser, on this device — nothing is uploaded. Use music you own; titles/artists are matched to the library automatically."),
+      drop, fileInput, status,
+      !single ? el("button", { class: "btn ghost", onclick: () => this.showUpload() }, "Play a one-off file (don’t save)") : null,
+      el("button", { class: "btn ghost", onclick: () => this.showSongSelect() }, "← Back")
+    ));
   }
 
   // ---- settings (remap + calibration + toggles) ---------------------------

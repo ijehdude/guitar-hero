@@ -52,6 +52,33 @@ them. The on-screen **star** button (bottom-left) fires Overdrive when ready.
 
 ---
 
+## 🎵 Your music library (local audio, never uploaded)
+
+FRETSTORM ships an **in-app Library** — a curated catalog of iconic songs as
+**metadata only** (titles/artists/groups), with a **local artist/title search**
+that never touches the network. **No audio is bundled or deployed.** A catalog
+song becomes playable once its audio is present *on your device*, two ways:
+
+- **Local dev folder:** drop files into **`private_audio/`** (git-ignored). The
+  dev server serves them only during `npm run dev`; they're auto-matched to the
+  catalog by filename (`Artist - Title.mp3`), auto-charted in the browser, and
+  cached. **This folder is never committed or deployed** (see `.gitignore` +
+  `vite.config.ts` — the loader is `apply: "serve"` only).
+- **In-app Import** (works on the hosted site too): *Songs → Import / Add Audio*
+  → pick your files. They're decoded, charted, and cached in **IndexedDB on your
+  device**. Nothing is uploaded to any server.
+
+> ⚖️ **Use music you own.** The app never sources or distributes audio — you
+> supply your own files, which stay on your machine/browser. Online "search any
+> song" (rip from YouTube etc.) is **intentionally not built** — it raises real
+> copyright/ToS issues and doesn't fit a static deploy. It remains a clearly
+> labelled, stubbed pluggable interface; see `ROADMAP.md` (Phase 4).
+
+**What runs where:** the catalog UI, local search, browser charting, IndexedDB
+caching, the FRETSTORM Originals (synth tracks), and user-supplied audio all run
+**client-side and deploy fine to Vercel**. The only thing that's local-dev-only
+is reading the `private_audio/` folder.
+
 ## 🚀 Run it locally
 
 ```bash
@@ -67,12 +94,15 @@ npm run typecheck# optional: strict TypeScript check
 ```bash
 npx playwright install chromium   # one-time: fetch the headless browser
 npm run test:e2e                  # build + drive the real game in Chromium
+npm run test:e2e:library          # dev-mode: play a real song from private_audio/
 ```
 
-The end-to-end test (`tests/e2e/`) actually plays a built-in song with real
-keyboard input and asserts the score climbs — and that holding frets *without*
-strumming scores nothing. It also screenshots live gameplay to
-`tests/e2e/gameplay.png`.
+`test:e2e` plays a built-in song with real keyboard + touch input and asserts the
+score climbs (and that holding frets *without* strumming scores nothing, and that
+haptics fire). `test:e2e:library` boots a dev server and plays an actual song from
+your `private_audio/` folder end-to-end (decode → browser charting → score);
+it **skips gracefully** if you haven't added any audio. Both screenshot live
+gameplay to `tests/e2e/*.png`.
 
 > **Test on your phone:** run `npm run dev -- --host` (or `npm run preview -- --host`)
 > and open the printed Network URL on a phone on the same Wi-Fi. Tap once to enable

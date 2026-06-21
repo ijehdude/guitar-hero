@@ -117,6 +117,15 @@ edge.
 > legal and infrastructure reasons. The MVP ships only the **pluggable interface**
 > (`src/audio/source.ts`, `AudioSource` + `stubSource`); the UI already targets it.
 
+> **Update — the in-app Library covers the common case without this.** The app now
+> ships a curated **catalog (metadata only)** + a **local artist/title search**,
+> made playable via **user-supplied audio** (the `private_audio/` dev folder and
+> the in-app Import flow, both client-side, nothing uploaded — see README). That
+> deliberately sidesteps online sourcing: the player provides their own files, so
+> there's no ripping, no redistribution, and it works on the static Vercel build.
+> Feature 3 below remains the *separate* "find a song I don't have, online"
+> capability — still stubbed, still gated by the constraints described here.
+
 ### Why it's hard
 1. **Copyright / Terms of Service.** Downloading or extracting audio from
    YouTube, Spotify, etc. typically **violates their ToS and copyright law**.

@@ -1,0 +1,39 @@
+{
+  "groups": [
+    { "id": "signature", "label": "Signature / Hardest" },
+    { "id": "classic", "label": "Classic Rock Staples" },
+    { "id": "crowd", "label": "Crowd-Pleasers" },
+    { "id": "electronic", "label": "Electronic" }
+  ],
+  "songs": [
+    { "id": "ttfaf", "title": "Through the Fire and Flames", "artist": "DragonForce", "group": "signature", "difficultyHint": "expert" },
+    { "id": "free-bird", "title": "Free Bird", "artist": "Lynyrd Skynyrd", "group": "signature", "difficultyHint": "hard" },
+    { "id": "one", "title": "One", "artist": "Metallica", "group": "signature", "difficultyHint": "expert" },
+    { "id": "cliffs-of-dover", "title": "Cliffs of Dover", "artist": "Eric Johnson", "group": "signature", "difficultyHint": "expert" },
+    { "id": "bark-at-the-moon", "title": "Bark at the Moon", "artist": "Ozzy Osbourne", "group": "signature", "difficultyHint": "hard" },
+    { "id": "raining-blood", "title": "Raining Blood", "artist": "Slayer", "group": "signature", "difficultyHint": "expert" },
+
+    { "id": "sweet-child-o-mine", "title": "Sweet Child O' Mine", "artist": "Guns N' Roses", "group": "classic", "difficultyHint": "hard" },
+    { "id": "slow-ride", "title": "Slow Ride", "artist": "Foghat", "group": "classic", "difficultyHint": "medium" },
+    { "id": "paint-it-black", "title": "Paint It Black", "artist": "The Rolling Stones", "group": "classic", "difficultyHint": "medium" },
+    { "id": "carry-on-wayward-son", "title": "Carry On Wayward Son", "artist": "Kansas", "group": "classic", "difficultyHint": "hard" },
+    { "id": "more-than-a-feeling", "title": "More Than a Feeling", "artist": "Boston", "group": "classic", "difficultyHint": "medium" },
+    { "id": "barracuda", "title": "Barracuda", "artist": "Heart", "group": "classic", "difficultyHint": "hard" },
+    { "id": "schools-out", "title": "School's Out", "artist": "Alice Cooper", "group": "classic", "difficultyHint": "medium" },
+
+    { "id": "welcome-to-the-jungle", "title": "Welcome to the Jungle", "artist": "Guns N' Roses", "group": "crowd", "difficultyHint": "hard" },
+    { "id": "cult-of-personality", "title": "Cult of Personality", "artist": "Living Colour", "group": "crowd", "difficultyHint": "hard" },
+    { "id": "mississippi-queen", "title": "Mississippi Queen", "artist": "Mountain", "group": "crowd", "difficultyHint": "medium" },
+    { "id": "smoke-on-the-water", "title": "Smoke on the Water", "artist": "Deep Purple", "group": "crowd", "difficultyHint": "easy" },
+    { "id": "killer-queen", "title": "Killer Queen", "artist": "Queen", "group": "crowd", "difficultyHint": "medium" },
+    { "id": "reptilia", "title": "Reptilia", "artist": "The Strokes", "group": "crowd", "difficultyHint": "medium" },
+    { "id": "when-you-were-young", "title": "When You Were Young", "artist": "The Killers", "group": "crowd", "difficultyHint": "medium" },
+    { "id": "even-flow", "title": "Even Flow", "artist": "Pearl Jam", "group": "crowd", "difficultyHint": "hard" },
+    { "id": "hit-me-with-your-best-shot", "title": "Hit Me with Your Best Shot", "artist": "Pat Benatar", "group": "crowd", "difficultyHint": "easy" },
+
+    { "id": "avicii-levels", "title": "Levels", "artist": "Avicii", "group": "electronic", "difficultyHint": "medium" },
+    { "id": "avicii-the-nights", "title": "The Nights", "artist": "Avicii", "group": "electronic", "difficultyHint": "medium" },
+    { "id": "avicii-waiting-for-love", "title": "Waiting for Love", "artist": "Avicii", "group": "electronic", "difficultyHint": "medium" },
+    { "id": "avicii-wake-me-up", "title": "Wake Me Up", "artist": "Avicii", "group": "electronic", "difficultyHint": "medium" }
+  ]
+}

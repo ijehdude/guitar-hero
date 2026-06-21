@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "vite build && node tests/e2e/run.mjs"
+    "test:e2e": "vite build && node tests/e2e/run.mjs",
+    "test:e2e:library": "node tests/e2e/run-dev.mjs"
   },
   "devDependencies": {
     "playwright": "^1.61.0",

@@ -1,3 +1,9 @@
+# PRIVATE AUDIO — your personal music files. NEVER commit/deploy these
+# (copyrighted; the public repo + Vercel would redistribute them). The app reads
+# this folder only in local dev; production play uses in-app import (client-side).
+private_audio/
+private-audio/
+
 # dependencies
 node_modules/
 
