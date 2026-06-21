@@ -91,6 +91,35 @@ async function run() {
     await ctx.close();
   }
 
+  // ---- Scenario 3: MOBILE touch — tapping fret buttons scores -------------
+  {
+    const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 390, height: 844 } });
+    const page = await ctx.newPage();
+    await gotoSong(page);
+    // Read the live fret-button geometry from the engine's layout.
+    const geo = await page.evaluate(() => {
+      const L = window.__fretstorm.engine.layout;
+      return { centers: L.laneCentersHit, y: L.hitLineY };
+    });
+    const deadline = Date.now() + 13000;
+    let peak = 0;
+    while (Date.now() < deadline) {
+      for (let i = 0; i < 5; i++) await page.touchscreen.tap(geo.centers[i], geo.y); // tap all lanes
+      await sleep(90);
+      peak = await page.evaluate(() => window.__fretstorm.engine?.score.score ?? 0);
+      if (peak > 0 && Date.now() > deadline - 9000) break;
+    }
+    const state = await page.evaluate(() => {
+      const s = window.__fretstorm.engine?.score;
+      return s ? { score: s.score, perfect: s.perfect, good: s.good, miss: s.miss } : null;
+    });
+    console.log("   touch state:", JSON.stringify(state));
+    await page.screenshot({ path: "tests/e2e/gameplay-touch.png" });
+    check("MOBILE: tapping a fret button plays the note (score > 0)", !!state && state.score > 0);
+    check("MOBILE: hits registered via touch", !!state && state.perfect + state.good > 0);
+    await ctx.close();
+  }
+
   await browser.close();
   console.log(`\n${failures === 0 ? "ALL E2E TESTS PASSED ✓" : failures + " E2E TEST(S) FAILED ✗"}`);
   process.exit(failures === 0 ? 0 : 1);

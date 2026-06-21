@@ -147,10 +147,10 @@ export class GameEngine {
     const inp = this.deps.input;
     this.deps.canvas.addEventListener("pointerdown", this.odPointer, true);
     this.unsubs.push(
-      inp.on("strum", () => this.onStrum()),
-      inp.on("fretDown", ({ lane }) => {
+      inp.on("strum", ({ source }) => this.onStrum(source)),
+      inp.on("fretDown", ({ lane, source }) => {
         this.highway.flashLane(lane); // subtle responsiveness
-        this.onFretDown();
+        this.onFretDown(source);
       }),
       inp.on("fretUp", () => this.releaseSustainsIfNeeded()),
       inp.on("overdrive", () => this.tryOverdrive()),
@@ -187,22 +187,28 @@ export class GameEngine {
     return this.playTime() - (s.audioOffsetMs + s.inputOffsetMs) / 1000;
   }
 
-  // ---- strum handling (with input buffering) ------------------------------
-  private onStrum() {
+  // ---- strum / tap handling (with input buffering) ------------------------
+  private onStrum(source: "touch" | "key") {
     if (this.attemptHit()) {
       this.strumArmedUntil = -Infinity;
       return;
     }
-    // No matching note held yet — arm the strum so a fret pressed a few ms
-    // later still counts. Overstrum is only penalised if it expires unmatched.
-    this.strumArmedUntil = this.playTime() + 0.09;
+    // Touch strums are just a free extra chance (frets already play on tap), so
+    // they never penalise. Only a keyboard strum can overstrum, and it's
+    // buffered: a fret pressed a few ms later still lands the note.
+    if (source === "key") this.strumArmedUntil = this.playTime() + 0.09;
   }
 
-  private onFretDown() {
-    const assist = this.deps.getSettings().hitAssist;
-    // In Hit-Assist, a fret press alone plays the note (no strum required).
-    // Otherwise, only retry a hit if a recent strum is still armed.
-    if (assist || this.playTime() <= this.strumArmedUntil) {
+  private onFretDown(source: "touch" | "key") {
+    // MOBILE: tapping a coloured fret button plays the note directly — the
+    // on-screen strum bar is a secondary/advanced control. Keyboard Hit-Assist
+    // behaves the same. Both are "free" attempts (a miss is never an overstrum).
+    if (source === "touch" || this.deps.getSettings().hitAssist) {
+      this.attemptHit();
+      return;
+    }
+    // KEYBOARD normal play: a fret press only rescues a recently-armed strum.
+    if (this.playTime() <= this.strumArmedUntil) {
       if (this.attemptHit()) this.strumArmedUntil = -Infinity;
     }
   }

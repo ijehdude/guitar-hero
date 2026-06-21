@@ -147,7 +147,7 @@ class App {
           el("div", { class: "keycap", style: { borderColor: c, color: c, boxShadow: `0 0 14px ${c}` } }, keyLabel(b.frets[i]))
         )),
         el("div", { class: "small" }, "↑ / ↓ = strum   ·   SPACE = overdrive   ·   ESC = pause  (all remappable in Settings)"),
-        el("div", { class: "sub" }, "On a phone? Tap the coloured buttons and tap/swipe the strum bar below them."),
+        el("div", { class: "sub" }, "On a phone? Just tap the matching coloured button as each note reaches the line. (Prefer real strumming? Hold a fret and use the strum bar below.)"),
         el("div", { class: "col" }, [
           el("button", { class: "btn primary", onclick: () => this.startTutorial() }, "Start Tutorial"),
           el("button", { class: "btn ghost", onclick: () => { this.settings.tutorialSeen = true; this.save(); this.showMenu(); } }, "Skip"),
@@ -464,15 +464,16 @@ class App {
     this.showStrumHint(true);
   }
 
-  /** Transient on-screen reminder of the core control: hold a fret + STRUM. */
+  /** Transient on-screen reminder of the core control (platform-aware). */
   private showStrumHint(tutorial = false) {
     const b = this.settings.bindings;
-    const desktop = matchMedia("(pointer: fine)").matches;
+    const desktop = matchMedia("(pointer: fine)").matches && !matchMedia("(pointer: coarse)").matches;
+    const title = desktop ? (tutorial ? "It takes two: fret + strum" : "Fret + Strum") : "Tap the notes!";
     const how = desktop
       ? `Hold a fret key, then tap ${keyLabel(b.strumDown)} / ${keyLabel(b.strumUp)} to STRUM`
-      : "Hold a fret button, then tap/swipe the STRUM bar below";
+      : "Tap the matching coloured button as each note reaches the line";
     const hint = el("div", { class: "play-hint" }, [
-      el("b", {}, tutorial ? "It takes two: fret + strum" : "Fret + Strum"),
+      el("b", {}, title),
       el("span", {}, how),
     ]);
     this.ui.append(hint);
