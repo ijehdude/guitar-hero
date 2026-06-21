@@ -83,6 +83,17 @@ async function run() {
     await sleep(350);
     const r = await page.evaluate(() => window.__fretstorm.clock.ctx.state);
     check("resume restarts the audio context", r === "running");
+
+    // hit SFX off by default
+    check("tap sound is muted by default", await page.evaluate(() => window.__fretstorm.settings.hitSfx === false));
+
+    // auto-boost: charging the meter auto-activates; a miss clears it
+    await page.evaluate(() => { window.__fretstorm.engine.score.starPower = 0.6; });
+    await sleep(250);
+    const od1 = await page.evaluate(() => window.__fretstorm.engine.score.overdriveActive);
+    const odm = await page.evaluate(() => { const s = window.__fretstorm.engine.score; s.registerMiss(); return s.overdriveActive; });
+    check("boost auto-activates when charged (no button)", od1 === true);
+    check("a miss auto-disables the boost", odm === false);
     await ctx.close();
   }
 

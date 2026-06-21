@@ -148,21 +148,8 @@ export class GameEngine {
   }
 
   // ---- input wiring -------------------------------------------------------
-  // Touch tap on the on-screen star button activates overdrive. Runs in the
-  // capture phase so it can pre-empt the strum-zone handler underneath it.
-  private odPointer = (e: PointerEvent) => {
-    if (this.paused || this.finished) return;
-    const r = this.deps.canvas.getBoundingClientRect();
-    if (this.hitTestOverdrive(e.clientX - r.left, e.clientY - r.top)) {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      this.tryOverdrive();
-    }
-  };
-
   private bindInput() {
     const inp = this.deps.input;
-    this.deps.canvas.addEventListener("pointerdown", this.odPointer, true);
     this.unsubs.push(
       inp.on("strum", ({ source }) => this.onStrum(source)),
       inp.on("fretDown", ({ lane, source }) => {
@@ -170,12 +157,10 @@ export class GameEngine {
         this.onFretDown(source);
       }),
       inp.on("fretUp", () => this.releaseSustainsIfNeeded()),
-      inp.on("overdrive", () => this.tryOverdrive()),
       inp.on("pause", () => this.onPauseRequested())
     );
   }
   private unbindInput() {
-    this.deps.canvas.removeEventListener("pointerdown", this.odPointer, true);
     this.unsubs.forEach((u) => u());
     this.unsubs.length = 0;
   }
@@ -288,7 +273,7 @@ export class GameEngine {
       this.particles.hit(x, y, color, 1);
       this.setJudge("GOOD", "#2bff88", "+" + gained);
     }
-    this.deps.synth.hit(quality);
+    if (this.deps.getSettings().hitSfx) this.deps.synth.hit(quality);
 
     if (this.scoring.flashMultiplierBump) {
       this.particles.ring(this.layout.cx, this.layout.hitLineY, "#ff2d95");
@@ -390,6 +375,8 @@ export class GameEngine {
     const visTime = this.playTime(); // notes are drawn/judged against heard audio
 
     this.scoring.update(dt);
+    // Boost is automatic now: fires the instant the meter is charged.
+    if (this.scoring.canActivateOverdrive) this.tryOverdrive();
     this.expireArmedStrum();
     this.checkMisses();
     this.updateSustains();
@@ -537,10 +524,10 @@ export class GameEngine {
     this.roundRect(ctx, mx, my, Math.max(2, mw * sp), mh, 6);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = "#8b86c9";
+    ctx.fillStyle = s.overdriveActive ? "#ffd24a" : "#8b86c9";
     ctx.font = "600 11px Rajdhani, system-ui, sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText(s.canActivateOverdrive ? "READY — TAP STAR" : "STAR POWER", L.w - 18, my + mh + 4);
+    ctx.fillText(s.overdriveActive ? "BOOST ACTIVE" : "BOOST", L.w - 18, my + mh + 4);
 
     // progress bar (very bottom)
     const prog = Math.max(0, Math.min(1, songTime / this.track.duration));
@@ -549,48 +536,6 @@ export class GameEngine {
     ctx.fillStyle = "#14f1ff";
     ctx.fillRect(0, L.h - 4, L.w * prog, 4);
     ctx.restore();
-
-    // overdrive on-screen button (touch) — bottom-left of strum zone
-    if (s.canActivateOverdrive || s.overdriveActive) {
-      this.drawOverdriveButton(s.overdriveActive);
-    }
-  }
-
-  private drawOverdriveButton(active: boolean) {
-    const ctx = this.ctx;
-    const L = this.layout;
-    const r = 34;
-    const x = r + 18;
-    const y = L.h - r - 18 - this.safeBottom();
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.shadowColor = "#ffd24a";
-    ctx.shadowBlur = active ? 26 : 14;
-    ctx.fillStyle = active ? "rgba(255,210,74,0.85)" : "rgba(255,210,74,0.25)";
-    ctx.strokeStyle = "#ffd24a";
-    ctx.lineWidth = 3;
-    // star
-    ctx.beginPath();
-    for (let i = 0; i < 10; i++) {
-      const a = -Math.PI / 2 + (i * Math.PI) / 5;
-      const rr = i % 2 === 0 ? r : r * 0.45;
-      const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-    // store hit area for input (the strum zone handler ignores it; we check here)
-    this.overdriveBtn = { x, y, r };
-  }
-
-  /** Public so the host can route a tap on the star button to overdrive. */
-  overdriveBtn: { x: number; y: number; r: number } | null = null;
-  hitTestOverdrive(px: number, py: number): boolean {
-    const b = this.overdriveBtn;
-    if (!b) return false;
-    return Math.hypot(px - b.x, py - b.y) <= b.r + 6;
   }
 
   private drawCountIn(songTime: number) {

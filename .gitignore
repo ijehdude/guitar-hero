@@ -31,3 +31,7 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+
+# TLS certs/keys (e.g. from `tailscale cert`) — never commit private keys
+*.crt
+*.key

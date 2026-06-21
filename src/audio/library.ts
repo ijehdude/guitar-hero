@@ -102,6 +102,9 @@ export class Library {
       const byFile = this.matchFilenames(files);
       for (const [file, id] of byFile) if (!this.remoteFileById.has(id)) this.remoteFileById.set(id, file);
       this.remoteCount = this.remoteFileById.size;
+      // Drop "My Songs" entries whose file was removed from the folder and isn't
+      // cached on this device — so removed songs don't linger as ghost cards.
+      this.entries = this.entries.filter((e) => e.group !== EXTRAS_GROUP.id || this.isAvailable(e.id));
     } catch {
       /* unreachable host — leave remote unset */
     }

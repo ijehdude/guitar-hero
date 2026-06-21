@@ -77,6 +77,12 @@ html, body {
     linear-gradient(180deg, rgba(6, 1, 15, 0.78), rgba(6, 1, 15, 0.92));
   backdrop-filter: blur(2px);
   overflow-y: auto;
+  overflow-x: hidden;
+  /* Lock scrolling to the vertical axis so the list doesn't sway left/right on
+     touch (the global touch-action:none for the game canvas otherwise leaves
+     menu scroll containers with no axis lock). */
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   animation: fade-in 0.25s ease;
 }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -147,7 +153,9 @@ h2.title { font-size: clamp(22px, 5vw, 34px); letter-spacing: 3px; margin: 4px 0
   text-align: left;
   width: 100%;
 }
-.card:hover { transform: translateX(4px); box-shadow: var(--glow) rgba(157, 75, 255, 0.4); border-color: var(--magenta); }
+.card:hover { box-shadow: var(--glow) rgba(157, 75, 255, 0.4); border-color: var(--magenta); }
+/* shift only on real hover (mouse) — avoids sticky-hover translate on touch scroll */
+@media (hover: hover) { .card:hover { transform: translateX(4px); } }
 .card .meta { flex: 1; }
 .card .song-title { font-size: 19px; font-weight: 700; letter-spacing: 1px; }
 .card .song-sub { color: var(--muted); font-size: 13px; }
@@ -188,29 +196,6 @@ h2.title { font-size: clamp(22px, 5vw, 34px); letter-spacing: 3px; margin: 4px 0
 .status-chip.checking { color: var(--muted); background: rgba(139, 134, 201, 0.1); border-color: rgba(139, 134, 201, 0.3); }
 .status-chip.online { color: #2bff88; background: rgba(43, 255, 136, 0.08); border-color: rgba(43, 255, 136, 0.4); }
 .status-chip.offline { color: #ff3b5c; background: rgba(255, 59, 92, 0.08); border-color: rgba(255, 59, 92, 0.4); }
-
-/* Catalog card + clip (✂︎) secondary action */
-.card-row { display: flex; gap: 8px; width: 100%; max-width: 560px; align-items: stretch; }
-.card-row .card { flex: 1; max-width: none; }
-.clip-btn {
-  flex: 0 0 auto; width: 50px;
-  border-radius: 12px; border: 1px solid rgba(157, 75, 255, 0.4);
-  background: rgba(157, 75, 255, 0.1); color: var(--ink);
-  font-size: 18px; cursor: pointer; transition: box-shadow 0.15s, background 0.15s;
-}
-.clip-btn:hover { background: rgba(157, 75, 255, 0.2); box-shadow: var(--glow) rgba(157, 75, 255, 0.45); }
-
-/* Clip editor timeline */
-.clip-bar {
-  position: relative; width: 100%; max-width: 560px; height: 48px;
-  border-radius: 12px; background: rgba(12, 4, 32, 0.6);
-  border: 1px solid rgba(139, 134, 201, 0.25); overflow: hidden;
-}
-.clip-bar > i {
-  position: absolute; top: 0; bottom: 0;
-  background: linear-gradient(180deg, rgba(20, 241, 255, 0.32), rgba(255, 45, 149, 0.28));
-  border-left: 2px solid var(--cyan); border-right: 2px solid var(--magenta);
-}
 
 /* ---- Settings rows ------------------------------------------------------ */
 .field { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; max-width: 560px;

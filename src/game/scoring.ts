@@ -89,6 +89,11 @@ export class Scoring {
     this.miss++;
     this.judged++;
     this.lastJudgement = "miss";
+    // a miss drops the boost and empties the meter (so it doesn't instantly re-arm)
+    if (this.overdriveActive) {
+      this.overdriveActive = false;
+      this.starPower = 0;
+    }
   }
 
   /** Strummed with no matching note → break combo, but not a "judged" note. */

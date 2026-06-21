@@ -31,6 +31,7 @@ export interface Settings {
   lefty: boolean; // mirror the highway
   screenShake: boolean;
   haptics: boolean; // vibrate on hits (Android touch; iOS web has no vibration)
+  hitSfx: boolean; // little blip on each hit (off by default)
   hitAssist: boolean; // Easy-mode forgiveness: strum optional, wider windows
   bindings: KeyBindings;
   difficulty: Difficulty;
@@ -73,6 +74,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lefty: false,
   screenShake: true,
   haptics: true,
+  hitSfx: false,
   hitAssist: false,
   bindings: DEFAULT_BINDINGS,
   difficulty: "medium",

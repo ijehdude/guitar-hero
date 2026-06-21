@@ -55,15 +55,18 @@ while (Date.now() < end) {
 }
 const st = await page.evaluate(() => {
   const s = window.__fretstorm.engine?.score;
-  const c = window.__fretstorm.lastClip;
-  return { score: s?.score, perfect: s?.perfect, good: s?.good, miss: s?.miss, clip: c ? +(c.end - c.start).toFixed(1) : null };
+  const tdur = window.__fretstorm.engine?.track?.duration ?? null;
+  const holds = (window.__fretstorm.engine?.chart?.notes ?? []).filter((n) => (n.duration ?? 0) > 0).length;
+  return { score: s?.score, perfect: s?.perfect, good: s?.good, miss: s?.miss, trackDur: tdur, holds };
 });
 console.log("state:", JSON.stringify(st), "| errors:", errors.length);
 
-// Library songs must be trimmed to a ~3-min clip (≤185s), never the full track.
-const trimmed = st.clip != null && st.clip <= 185;
-const ok = !!st && st.score > 0 && errors.length === 0 && trimmed;
-if (!trimmed) console.log("  ✗ expected clip ≤185s, got", st.clip);
+// Songs now play FULL length (TtFaF is ~7 min, so well over the old 185s cap),
+// and the GH2-style charter should produce at least some tap-and-hold notes.
+const fullLength = st.trackDur != null && st.trackDur > 185;
+const ok = !!st && st.score > 0 && errors.length === 0 && fullLength;
+if (!fullLength) console.log("  ✗ expected full-length track (>185s), got", st.trackDur);
+console.log("  holds in chart:", st.holds);
 console.log(ok ? "\nLIBRARY E2E PASSED ✓" : "\nLIBRARY E2E FAILED ✗");
 await browser.close();
 process.exit(ok ? 0 : 1);

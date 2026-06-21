@@ -113,7 +113,7 @@ export async function analyzeBuffer(
   const zLo = percentile(zVals, 0.1);
   const zHi = percentile(zVals, 0.9) || zLo + 1e-3;
 
-  const gems: Gem[] = [];
+  const taps: Gem[] = [];
   let lastTime = -Infinity;
   for (const o of onsets) {
     const raw = o.frame / frameRate;
@@ -123,11 +123,58 @@ export async function analyzeBuffer(
     lastTime = t;
     const b = (zcr[o.frame] - zLo) / (zHi - zLo);
     const lane = Math.max(0, Math.min(4, Math.round(b * 4)));
-    gems.push({ time: t, lanes: [lane], duration: 0 });
+    taps.push({ time: t, lanes: [lane], duration: 0 });
   }
+
+  // GH2-style "tap and hold": collapse machine-gun clusters of onsets into ONE
+  // held note, then extend isolated notes that ring out into sustains.
+  const gems = consolidateDenseGems(taps, sixteenth * 1.3, 4, 0.28);
+  applySustains(gems, energy, frameRate, buffer.duration);
 
   if (onProgress) onProgress(1);
   return { gems, bpm, duration: buffer.duration };
+}
+
+/**
+ * Replace a run of >= `minRun` onsets each spaced <= `clusterGap` apart with a
+ * single hold note spanning the run (lane = the run's median lane). Pure +
+ * unit-testable. Runs shorter than `minHold` seconds stay as individual taps.
+ */
+export function consolidateDenseGems(gems: Gem[], clusterGap: number, minRun: number, minHold: number): Gem[] {
+  const out: Gem[] = [];
+  let i = 0;
+  while (i < gems.length) {
+    let j = i;
+    while (j + 1 < gems.length && gems[j + 1].time - gems[j].time <= clusterGap) j++;
+    const runLen = j - i + 1;
+    const span = gems[j].time - gems[i].time;
+    if (runLen >= minRun && span >= minHold) {
+      const lanes = gems.slice(i, j + 1).map((g) => g.lanes[0]).sort((a, b) => a - b);
+      out.push({ time: gems[i].time, lanes: [lanes[lanes.length >> 1]], duration: span });
+    } else {
+      for (let k = i; k <= j; k++) out.push(gems[k]);
+    }
+    i = j + 1;
+  }
+  return out;
+}
+
+/** Extend a tap into a sustain when the audio keeps ringing into the next gap. */
+function applySustains(gems: Gem[], energy: Float32Array, frameRate: number, duration: number): void {
+  for (let i = 0; i < gems.length; i++) {
+    if ((gems[i].duration ?? 0) > 0) continue; // already a hold
+    const t = gems[i].time;
+    const tn = i + 1 < gems.length ? gems[i + 1].time : duration;
+    const gap = tn - t;
+    if (gap < 0.5) continue;
+    const f0 = Math.min(energy.length - 1, Math.max(0, Math.round(t * frameRate)));
+    const fEnd = Math.min(energy.length - 1, Math.round((t + gap) * frameRate));
+    const e0 = energy[f0];
+    if (!e0 || e0 < 1e-4) continue;
+    let sum = 0, c = 0;
+    for (let f = f0; f <= fEnd; f++) { sum += energy[f]; c++; }
+    if (c && sum / c >= 0.5 * e0) gems[i].duration = Math.min(gap * 0.85, 2.0);
+  }
 }
 
 function smooth(a: Float32Array, radius: number) {
