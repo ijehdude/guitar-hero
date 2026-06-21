@@ -178,6 +178,17 @@ h2.title { font-size: clamp(22px, 5vw, 34px); letter-spacing: 3px; margin: 4px 0
 }
 .group-h:first-child { margin-top: 0; }
 
+/* Library online/offline status chip */
+.status-chip {
+  width: 100%; max-width: 560px;
+  padding: 8px 14px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.5px;
+  text-align: center; cursor: pointer; border: 1px solid transparent;
+}
+.status-chip.checking { color: var(--muted); background: rgba(139, 134, 201, 0.1); border-color: rgba(139, 134, 201, 0.3); }
+.status-chip.online { color: #2bff88; background: rgba(43, 255, 136, 0.08); border-color: rgba(43, 255, 136, 0.4); }
+.status-chip.offline { color: #ff3b5c; background: rgba(255, 59, 92, 0.08); border-color: rgba(255, 59, 92, 0.4); }
+
 /* Catalog card + clip (✂︎) secondary action */
 .card-row { display: flex; gap: 8px; width: 100%; max-width: 560px; align-items: stretch; }
 .card-row .card { flex: 1; max-width: none; }

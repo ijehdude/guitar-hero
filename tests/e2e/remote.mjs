@@ -70,8 +70,12 @@ const cachedSrc = await page.evaluate(
 );
 await page.screenshot({ path: "tests/e2e/gameplay-remote.png" });
 
-console.log("state:", JSON.stringify(st), "| cached-as:", cachedSrc, "| errors:", errors.length);
-const ok = !!st && st.score > 0 && errors.length === 0 && cachedSrc === "cache";
+// health/reachability: /health true when host up, false when unreachable
+const pingUp = await page.evaluate(([b, t]) => window.__fretstorm.library.pingHost({ baseUrl: b, token: t }), [HOST_BASE, TOKEN]);
+const pingDown = await page.evaluate(() => window.__fretstorm.library.pingHost({ baseUrl: "http://127.0.0.1:1", token: "x" }));
+
+console.log("state:", JSON.stringify(st), "| cached-as:", cachedSrc, "| ping up/down:", pingUp, pingDown, "| errors:", errors.length);
+const ok = !!st && st.score > 0 && errors.length === 0 && cachedSrc === "cache" && pingUp === true && pingDown === false;
 console.log(ok ? "\nREMOTE LIBRARY E2E PASSED ✓" : "\nREMOTE LIBRARY E2E FAILED ✗");
 await browser.close();
 process.exit(ok ? 0 : 1);

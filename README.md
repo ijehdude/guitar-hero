@@ -110,12 +110,44 @@ Your Library → paste → Connect*. Then just pick a song and play.
   sent to Vercel. CORS is locked to the app origin. **Don't share the link.**
 - 📥 **Caches after first play.** Once you've streamed a song, it's cached in your
   phone's IndexedDB — replays don't need the laptop.
-- ⚠️ **The laptop must be reachable** (host + tunnel running) for a song you
-  haven't cached yet — that's the trade-off for never putting audio on a server.
-  A 24/7 laptop covers it. The quick-tunnel URL changes if the tunnel restarts
-  (just re-scan the QR); a Cloudflare **named tunnel** gives a permanent URL.
+- 🟢 **In-app status.** The song list shows **Library online · N songs** /
+  **Library offline** so you always know if the laptop is reachable (tap it to re-check).
+- ⚠️ **The laptop must be reachable** for a song you haven't cached yet — that's the
+  trade-off for never putting audio on a server. A 24/7 laptop covers it.
 - 🏠 **Same Wi-Fi?** You don't even need a tunnel — `npm run host` also prints a
   LAN pairing link, or just open the laptop's `npm run dev -- --host` URL.
+
+**Pair once, forever (permanent URL).** The default quick tunnel's URL changes on
+restart (re-scan needed). For a link that never changes, point a *stable* HTTPS URL
+at the host port (8788) and set it as `PUBLIC_URL` — the host then uses it and skips
+the quick tunnel:
+
+```bash
+# Option A — Tailscale Funnel (free, no domain needed):
+brew install tailscale && tailscale up
+tailscale funnel 8788          # → https://<machine>.<tailnet>.ts.net
+PUBLIC_URL=https://<machine>.<tailnet>.ts.net npm run host
+
+# Option B — Cloudflare named tunnel (if you own a domain):
+#   cloudflared tunnel login && cloudflared tunnel create fretstorm
+#   cloudflared tunnel route dns fretstorm library.yourdomain.com
+#   run it pointing at localhost:8788, then:
+PUBLIC_URL=https://library.yourdomain.com npm run host
+```
+
+(You can also put `"publicUrl"` in `private_audio/.host.json` instead of the env var.)
+Scan the QR **once** and it works forever.
+
+**Auto-start at login (macOS).** So you never run `npm run host` manually:
+
+```bash
+PUBLIC_URL=https://<your-permanent-url> npm run host:install   # starts now + every login
+npm run host:uninstall                                          # remove it
+```
+
+It installs a `launchd` agent that keeps the host running (logs to
+`~/Library/Logs/fretstorm-host.log`). With Tailscale Funnel persisting on its own,
+that's the whole "set it once" setup.
 
 This is personal use: your own files, from your own machine, to your own devices.
 The public deploy still contains **zero audio**.

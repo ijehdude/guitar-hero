@@ -25,14 +25,18 @@ const APP_URL = process.env.APP_URL || "https://guitar-hero-fawn.vercel.app";
 const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || new URL(APP_URL).origin;
 const AUDIO_RE = /\.(mp3|m4a|ogg|wav|flac)$/i;
 
-// ---- persistent token -------------------------------------------------------
+// ---- persistent token + optional permanent URL ------------------------------
 const tokenFile = path.join(DIR, ".host.json");
-let token = "";
-try { token = JSON.parse(fs.readFileSync(tokenFile, "utf8")).token; } catch {}
+let cfg = {};
+try { cfg = JSON.parse(fs.readFileSync(tokenFile, "utf8")) || {}; } catch {}
+let token = cfg.token || "";
 if (!token) {
   token = crypto.randomBytes(24).toString("base64url");
-  try { fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(tokenFile, JSON.stringify({ token }, null, 2)); } catch {}
+  try { fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(tokenFile, JSON.stringify({ ...cfg, token }, null, 2)); } catch {}
 }
+// A stable public URL (Tailscale Funnel / Cloudflare named tunnel) → pair once,
+// forever. Set via env PUBLIC_URL or "publicUrl" in private_audio/.host.json.
+const PUBLIC_URL = (process.env.PUBLIC_URL || cfg.publicUrl || "").replace(/\/+$/, "");
 
 const listFiles = () => { try { return fs.readdirSync(DIR).filter((f) => AUDIO_RE.test(f)); } catch { return []; } };
 
@@ -56,6 +60,11 @@ const server = http.createServer((req, res) => {
 
   const tok = u.searchParams.get("token") || (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (tok !== token) { res.statusCode = 403; return res.end("forbidden"); }
+
+  if (u.pathname === "/health") {
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify({ ok: true, count: listFiles().length }));
+  }
 
   if (u.pathname === "/manifest") {
     res.setHeader("Content-Type", "application/json");
@@ -93,8 +102,16 @@ server.listen(PORT, () => {
   console.log(`\n🎸 FRETSTORM library host`);
   console.log(`   serving ${listFiles().length} songs from ${DIR}`);
   console.log(`   local:  http://localhost:${PORT}   (LAN: http://${lanIP()}:${PORT})`);
-  if (process.env.NO_TUNNEL) console.log(`   (tunnel disabled — token: ${token})`);
-  else startTunnel();
+  if (PUBLIC_URL) {
+    // Stable URL configured → pair once, forever. No quick tunnel needed.
+    printPairing(PUBLIC_URL, "permanent");
+    console.log(`   Using permanent URL ${PUBLIC_URL} — make sure your tunnel`);
+    console.log(`   (Tailscale Funnel / Cloudflare named tunnel) forwards it to port ${PORT}.`);
+  } else if (process.env.NO_TUNNEL) {
+    console.log(`   (tunnel disabled — token: ${token})`);
+  } else {
+    startTunnel();
+  }
 });
 
 // ---- pairing + tunnel -------------------------------------------------------

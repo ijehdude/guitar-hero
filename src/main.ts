@@ -251,6 +251,7 @@ class App {
     const root = screen(
       el("h2", { class: "title" }, "Songs"),
       diffRow,
+      this.libraryStatusChip(),
       search,
       listEl,
       el("div", { class: "row" }, [
@@ -264,6 +265,36 @@ class App {
     );
     root.id = "songselect";
     this.setScreen(root);
+  }
+
+  /** Live "library online/offline" chip (only when a host is paired). */
+  private libraryStatusChip(): HTMLElement | null {
+    const host = this.settings.libraryHost;
+    if (!host) return null;
+    const chip = el("div", { class: "status-chip checking", title: "Tap to re-check your library" }, "Checking your library…");
+    const apply = () => {
+      const online = this.library.remoteReachable;
+      chip.className = "status-chip " + (online ? "online" : "offline");
+      chip.textContent = online
+        ? `🟢 Library online · ${this.library.remoteCount} songs`
+        : "🔴 Library offline — start your laptop host";
+    };
+    apply();
+    // Refresh on entering the screen; if it just came online, re-render so the
+    // now-reachable songs unlock.
+    const wasReachable = this.library.remoteReachable;
+    this.library.loadRemoteManifest(host).then(() => {
+      if (!document.getElementById("songselect")) return;
+      if (!wasReachable && this.library.remoteReachable) this.renderSongSelect();
+      else apply();
+    });
+    chip.addEventListener("click", async () => {
+      chip.className = "status-chip checking";
+      chip.textContent = "Re-checking…";
+      await this.library.loadRemoteManifest(host);
+      this.renderSongSelect();
+    });
+    return chip;
   }
 
   private matchesQuery(title: string, artist: string): boolean {

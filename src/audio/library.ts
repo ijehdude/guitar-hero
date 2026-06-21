@@ -79,6 +79,7 @@ export class Library {
   private remote: { base: string; token: string } | null = null;
   isDev = false;
   remoteCount = 0;
+  remoteReachable = false; // is the configured library host reachable right now?
 
   async init(host?: LibraryHost): Promise<void> {
     await Promise.all([this.loadDevManifest(), this.loadCached(), this.loadRemoteManifest(host)]);
@@ -89,6 +90,7 @@ export class Library {
     this.remote = null;
     this.remoteFileById.clear();
     this.remoteCount = 0;
+    this.remoteReachable = false;
     if (!host?.baseUrl || !host?.token) return;
     const base = host.baseUrl.replace(/\/+$/, "");
     try {
@@ -96,11 +98,28 @@ export class Library {
       if (!res.ok) return; // host offline / wrong token → songs just stay locked
       const files: string[] = (await res.json()).files ?? [];
       this.remote = { base, token: host.token };
+      this.remoteReachable = true;
       const byFile = this.matchFilenames(files);
       for (const [file, id] of byFile) if (!this.remoteFileById.has(id)) this.remoteFileById.set(id, file);
       this.remoteCount = this.remoteFileById.size;
     } catch {
       /* unreachable host — leave remote unset */
+    }
+  }
+
+  /** Cheap liveness check against the host's /health (updates remoteReachable). */
+  async pingHost(host?: LibraryHost): Promise<boolean> {
+    const h = host ?? (this.remote ? { baseUrl: this.remote.base, token: this.remote.token } : null);
+    if (!h?.baseUrl || !h?.token) { this.remoteReachable = false; return false; }
+    const base = h.baseUrl.replace(/\/+$/, "");
+    try {
+      const signal = (AbortSignal as any).timeout ? (AbortSignal as any).timeout(4000) : undefined;
+      const res = await fetch(`${base}/health?token=${encodeURIComponent(h.token)}`, { cache: "no-store", signal });
+      this.remoteReachable = res.ok;
+      return res.ok;
+    } catch {
+      this.remoteReachable = false;
+      return false;
     }
   }
 
